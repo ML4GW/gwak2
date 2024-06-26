@@ -19,7 +19,7 @@ from models import LSTM_AE_SPLIT
 
 
 def main(
-    data_dir: str = '/home/ethan.marx/amplfi/data/train/',
+    data_dir: str = '/home/ethan.marx/amplfi/data/train/background',
     ifos: List = ['H1', 'L1'],
     sample_rate: int = 4096,
     psd_length: int = 64, # segment length in seconds to estimate PSD
@@ -31,14 +31,12 @@ def main(
 
     data_dir = Path(data_dir)
     print(f'Running training on {data_dir}')
-    for f in data_dir.glob("*.hdf5"):
-        print(f'Will run on the following files \n {f}')
 
     kernel_size = (psd_length + fduration + kernel_length) * sample_rate
 
     # create training dataloader
     dataloader = Hdf5TimeSeriesDataset(
-        fnames = data_dir.glob("hdf5"),
+        fnames = list(data_dir.glob('*.hdf5')),
         channels = ifos,
         kernel_size = int(kernel_size),
         batch_size = batch_size,
@@ -67,13 +65,10 @@ def main(
     # parameter name to tensor of parameter names
     intrinsic_prior = Prior(
       hrss = Uniform(1e-21, 2e-21),
-      q = Uniform(5, 75),
+      quality = Uniform(5, 75),
       frequency = Uniform(64, 512),
       phase = Uniform(0, 2 * torch.pi),
       eccentricity = Uniform(0, 0.01),
-      dec = Cosine(),
-      ra = Uniform(0, 2 * torch.pi),
-      psi = Uniform(0, 2 * torch.pi),
     )
 
     extrinsic_prior = Prior(
@@ -82,7 +77,7 @@ def main(
       psi = Uniform(0, 2 * torch.pi)
     )
 
-    model = LSTM_AE_SPLIT(len(ifos), 200, 4).to('cuda')
+    model = LSTM_AE_SPLIT(len(ifos), 200, 4)
 
     for X in dataloader:
       # X is shape (batch_size, num_ifos, kernel_size)
@@ -97,7 +92,7 @@ def main(
 
 
       # sample from prior and generate waveforms
-      parameters = prior.sample(batch_size) # dict[str, torch.tensor]
+      parameters = intrinsic_prior.sample(batch_size) # dict[str, torch.tensor]
       cross, plus = sine_gaussian(**parameters)
 
       # sample extrinsic parameters
@@ -110,7 +105,7 @@ def main(
       responses = compute_observed_strain(
           dec,
           psi,
-          phi,
+          ra,
           tensors,
           vertices,
           sample_rate,
