@@ -1,0 +1,3 @@
+rule train:
+    shell:
+        'poetry run python train/train.py'
