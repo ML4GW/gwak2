@@ -1,1 +1,1 @@
-from .data import data
+from .data.prior import Prior
