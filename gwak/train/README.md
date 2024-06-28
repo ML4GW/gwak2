@@ -6,6 +6,10 @@ Here is the summary how to run `GWAK` algorithm training
 The code is organized using [`Snakemake`](https://snakemake.readthedocs.io/en/stable/).
 The Snakemake workflow management system is a tool to create reproducible and scalable data analyses.
 
+Check the [Snakefile](/.Snakefile) for the definition of analysis steps, eg `rules`.
+Typically, each `rule` is a wrapper around a python function. Though, `Snakemake` can be used in much more cases.
+
+
 To run snakemake do
 ```
 snakemake -c1 {rule_name}

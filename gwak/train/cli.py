@@ -17,12 +17,13 @@ from pathlib import Path
 import gwak
 from gwak.data import Prior
 
-import models
+import train.models as models
 
 
-def main(
-    data: torch.nn.Module,
+def train(
+    data: str,
     model_name: str,
+    model_file: str, # where to save the trained model
     data_dir: str = '/home/ethan.marx/aframe/data/train/background',
     ifos: List = ['H1', 'L1'],
     sample_rate: int = 2048,
@@ -98,7 +99,7 @@ def main(
 
     # training loop
     epoch_count = 0
-    EPOCHS = 20
+    EPOCHS = 2
 
     for epoch_num in range(EPOCHS):
         epoch_count += 1
@@ -159,7 +160,7 @@ def main(
         training_history['train_loss'].append(epoch_train_loss)
 
     # save the model
-    torch.save(model.state_dict(), f'model.pt')
+    torch.save(model.state_dict(), model_file)
 
     # plot training history
     from matplotlib import pyplot as plt
@@ -179,16 +180,3 @@ def main(
     plt.grid()
     plt.savefig('reconstruction.pdf')
     plt.clf()
-
-if __name__=='__main__':
-
-    parser = argparse.ArgumentParser()
-
-    # Required arguments
-    parser.add_argument('--data', type=str, help='Directory containing the injections to evaluate')
-    parser.add_argument('--model', type=str,
-                        help='Directory containing the injections to evaluate')
-
-    args = parser.parse_args()
-
-    main(args.data, args.model)

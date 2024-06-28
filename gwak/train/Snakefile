@@ -1,30 +1,31 @@
 # Define a dictionary with the required parameters for each model
 model_params = {
-    "sine_gaussian": {
-        "signal": 'SineGaussian',
-        "model": "LSTM_AE_SPLIT",
-        "num_timesteps": 10,
-        "bottleneck": 5
+    'sine_gaussian': {
+        'signal': 'SineGaussian',
+        'model': 'LSTM_AE_SPLIT',
+        'num_timesteps': 10,
+        'bottleneck': 5
     },
-    # "background": {
-    #     "signal": None,
-    #     "model": "FAT",
-    #     "num_timesteps": 20,
-    #     "bottleneck": 10
+    # 'background': {
+    #     'signal': None,
+    #     'model': 'FAT',
+    #     'num_timesteps': 20,
+    #     'bottleneck': 10
     # }
 }
 
+from gwak.train.cli import train
 rule train:
     params:
-        bottleneck = lambda wildcards: model_params[wildcards.data]["bottleneck"],
-        model = lambda wildcards: model_params[wildcards.data]["model"],
-        data = lambda wildcards: model_params[wildcards.data]["signal"],
+        bottleneck = lambda wildcards: model_params[wildcards.data]['bottleneck'],
+        model = lambda wildcards: model_params[wildcards.data]['model'],
+        data = lambda wildcards: model_params[wildcards.data]['signal'],
     output:
-        'tmp/{data}.log'
-    shell:
-        'touch {output}; '
-        'python train/train.py --model {params.model} \
-                               --data {params.data} '
+        model_file = '/home/katya.govorkova/gwak2/output/model_{data}.pt'
+    run:
+        train(data=params.data,
+             model_name=params.model,
+             model_file=output.model_file)
 
 rule train_all:
     input:
