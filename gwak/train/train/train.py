@@ -41,7 +41,7 @@ def main(
 
     # create training dataloader
     dataloader = Hdf5TimeSeriesDataset(
-        fnames = list([data_dir/'background-1240700690-20000.hdf5']),
+        fnames = list(data_dir.glob('*.hdf5')),
         channels = ifos,
         kernel_size = int(kernel_size),
         batch_size = batch_size,
@@ -59,7 +59,7 @@ def main(
     spectral_density = SpectralDensity(
         sample_rate,
         fftlength,
-        average = "median"
+        average = 'median'
     ).to('cuda')
 
     # create whitener
@@ -98,7 +98,7 @@ def main(
 
     # training loop
     epoch_count = 0
-    EPOCHS = 200
+    EPOCHS = 20
 
     for epoch_num in range(EPOCHS):
         epoch_count += 1
