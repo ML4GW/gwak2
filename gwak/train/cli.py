@@ -66,9 +66,15 @@ def train(
         highpass = 30,
     ).to('cuda')
 
+    # data generation
     data = getattr(waveforms, data_type)(sample_rate, duration=kernel_length + fduration)
-    intrinsic_prior = getattr(prior, data_type)().intrinsic_prior
-    extrinsic_prior = getattr(prior, data_type)().extrinsic_prior
+
+    # priors
+    signal_prior = getattr(prior, data_type)()
+    intrinsic_prior = signal_prior.intrinsic_prior
+    extrinsic_prior = signal_prior.extrinsic_prior
+
+    # loading model
     model_class = getattr(models, model_name)
     model = model_class(len(ifos), 200, 8).to('cuda')
 
