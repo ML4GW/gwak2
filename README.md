@@ -23,7 +23,8 @@ $ git clone git@github.com:ml4gw/quickstart.git
 $ cd quickstart
 $ make
 ```
-- if you see this error
+
+If you see this error, it is already known in [issue#7](https://github.com/ML4GW/quickstart/issues/7)
 ```
 Verifying checksum... Done.
 Preparing to install helm into /you/path/miniconda3-tmp/bin/
@@ -33,12 +34,13 @@ Failed to install helm
     For support, go to https://github.com/helm/helm.
 make: *** [Makefile:65: install-helm] Error 1
 ```
-- do the following commands
+do the following commands:
 ```
 $ source ~/.bashrc
 $ make install-poetry install-kubectl install-s3cmd
 ```
-- if everything was installed successfully, continue to the steps below
+
+If everything was installed successfully, continue to the steps below.
 
 
 ### Main installation
