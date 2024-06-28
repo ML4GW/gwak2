@@ -1,3 +1,31 @@
+# Define a dictionary with the required parameters for each model
+model_params = {
+    "sine_gaussian": {
+        "data": 'SineGaussian',
+        "model": "LSTM_AE_SPLIT",
+        "num_timesteps": 10,
+        "bottleneck": 5
+    },
+    # "background": {
+    #     "data": 'Background',
+    #     "model": "FAT",
+    #     "num_timesteps": 20,
+    #     "bottleneck": 10
+    # }
+}
+
 rule train:
+    params:
+        bottleneck = lambda wildcards: model_params[wildcards.data]["bottleneck"],
+        model = lambda wildcards: model_params[wildcards.data]["model"],
+        data = lambda wildcards: model_params[wildcards.data]["data"],
+    output:
+        'tmp/{data}.log'
     shell:
-        'poetry run python train/train.py'
+        'touch {output}; '
+        'python train/train.py --model {params.model} \
+                               --data {params.data} '
+
+rule train_all:
+    input:
+        expand(rules.train.output, data=model_params.keys())
