@@ -30,7 +30,7 @@ Preparing to install helm into /you/path/miniconda3-tmp/bin/
 helm installed into /you/path/miniconda3-tmp/bin//helm
 helm not found. Is /you/path/miniconda3-tmp/bin/ on your $PATH?
 Failed to install helm
-	For support, go to https://github.com/helm/helm.
+    For support, go to https://github.com/helm/helm.
 make: *** [Makefile:65: install-helm] Error 1
 ```
 - do the following commands
@@ -61,3 +61,8 @@ $ pip install -e .
 ```
 
 Now you are ready to *gwak*!
+As a first step, you can run the training by doing
+```
+$ cd gwak
+$ snakemake -c1 train_all
+```

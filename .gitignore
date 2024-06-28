@@ -165,6 +165,5 @@ cython_debug/
 *.DS_Store
 *.snakemake
 
-# ignore trained models and plots
-*.pdf
-*.pt
+# ignore output folders with artefacts
+*output/

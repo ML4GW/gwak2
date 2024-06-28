@@ -14,18 +14,24 @@ model_params = {
     # }
 }
 
+import os
+from pathlib import Path
 from gwak.train.cli import train
+
 rule train:
     params:
         bottleneck = lambda wildcards: model_params[wildcards.data]['bottleneck'],
         model = lambda wildcards: model_params[wildcards.data]['model'],
         data = lambda wildcards: model_params[wildcards.data]['signal'],
     output:
-        model_file = '/home/katya.govorkova/gwak2/output/model_{data}.pt'
+        model_file = 'output/{data}/model.pt',
+        artefact = directory('output/{data}/')
     run:
+        os.makedirs(output.artefact, exist_ok=True)
         train(data=params.data,
              model_name=params.model,
-             model_file=output.model_file)
+             model_file=output.model_file,
+             artefacts=Path(output.artefact))
 
 rule train_all:
     input:

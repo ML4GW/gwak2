@@ -17,13 +17,14 @@ from pathlib import Path
 import gwak
 from gwak.data import Prior
 
-import train.models as models
+import models
 
 
 def train(
     data: str,
     model_name: str,
-    model_file: str, # where to save the trained model
+    model_file: Path, # where to save the trained model
+    artefacts: Path, # where to save plots
     data_dir: str = '/home/ethan.marx/aframe/data/train/background',
     ifos: List = ['H1', 'L1'],
     sample_rate: int = 2048,
@@ -171,12 +172,12 @@ def train(
     plt.xlabel('Epochs', fontsize=15)
     plt.ylabel('Loss', fontsize=15)
     plt.grid()
-    plt.savefig('training_loss.pdf')
+    plt.savefig(artefacts/'training_loss.pdf')
     plt.clf()
 
     plt.plot(model(whitened)[0,0,:].cpu().detach().numpy(), label='reco')
     plt.plot(whitened[0,0,:].cpu().detach().numpy(), label='reco')
     plt.legend()
     plt.grid()
-    plt.savefig('reconstruction.pdf')
+    plt.savefig(artefacts/'reconstruction.pdf')
     plt.clf()
