@@ -44,21 +44,18 @@ $ make install-poetry install-kubectl install-s3cmd
 ### Main installation
 
 If you **do have** `Miniconda` already installed on your machine, follow those steps
-- checkout this repo
+- checkout this repo and clone submodules (such as `ml4gw`)
 ```
 $ git clone git@github.com:ML4GW/gwak2.git
-& cd gwak2
-```
-- clone submodules (such as `ml4gw`)
-```
-git submodule update --init --recursive
+$ cd gwak2
+$ git submodule update --init --recursive
 ```
 - create a new `Conda` environment
 ```
 $ conda env create -n gwak --file environment.yaml
 $ conda activate gwak
 ```
-- install `gwak` project in editing mode
+- install `gwak` project in the editing mode
 ```
 $ pip install -e .
 ```

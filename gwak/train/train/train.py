@@ -15,7 +15,7 @@ from ml4gw.gw import compute_observed_strain, get_ifo_geometry
 from pathlib import Path
 
 import gwak
-from gwak.data.prior import Prior
+from gwak.data.data.prior import Prior
 
 import models
 

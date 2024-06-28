@@ -1,14 +1,16 @@
 [tool.poetry]
-name = "gwak"
+name = "data"
 version = "0.1.0"
 description = ""
-authors = ["Katya Govorkova <katyag@mit.edu>"]
+authors = ["Katya <katyag@mit.edu>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"
+
 # local deps
-ml4gw = {path = "ml4gw", develop = true}
+ml4gw = {path = "../../ml4gw", develop = true}
+gwak = {path = "../../../gwak2", develop = true}
 
 [build-system]
 requires = ["poetry-core"]
