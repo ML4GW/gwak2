@@ -4,24 +4,19 @@ from typing import Callable, List, Optional
 
 import torch
 import torch.optim as optim
-from torch.distributions.uniform import Uniform
 
 import ml4gw
 from ml4gw.dataloading import Hdf5TimeSeriesDataset
-import ml4gw.waveforms as waveforms # import SineGaussian
+import ml4gw.waveforms as waveforms
 from ml4gw.transforms import SpectralDensity, Whiten
-from ml4gw.distributions import Cosine, PowerLaw
 from ml4gw.gw import compute_observed_strain, get_ifo_geometry
 from pathlib import Path
 
-import gwak
-from gwak.data import Prior
-
 import models
-
+from gwak.data import prior
 
 def train(
-    data: str,
+    data_type: str,
     model_name: str,
     model_file: Path, # where to save the trained model
     artefacts: Path, # where to save plots
@@ -71,24 +66,9 @@ def train(
         highpass = 30,
     ).to('cuda')
 
-    data = getattr(waveforms, data)(sample_rate, duration=kernel_length + fduration)
-
-    # something with sample method that returns dict that maps
-    # parameter name to tensor of parameter names
-    intrinsic_prior = Prior(
-      hrss = Uniform(1e-21, 2e-21),
-      quality = Uniform(5, 75),
-      frequency = Uniform(64, 512),
-      phase = Uniform(0, 2 * torch.pi),
-      eccentricity = Uniform(0, 0.01),
-    )
-
-    extrinsic_prior = Prior(
-      ra = Uniform(0, 2 * torch.pi),
-      dec = Cosine(),
-      psi = Uniform(0, 2 * torch.pi)
-    )
-
+    data = getattr(waveforms, data_type)(sample_rate, duration=kernel_length + fduration)
+    intrinsic_prior = getattr(prior, data_type)().intrinsic_prior
+    extrinsic_prior = getattr(prior, data_type)().extrinsic_prior
     model_class = getattr(models, model_name)
     model = model_class(len(ifos), 200, 8).to('cuda')
 

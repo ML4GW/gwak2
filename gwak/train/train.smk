@@ -28,10 +28,12 @@ rule train:
         artefact = directory('output/{data}/')
     run:
         os.makedirs(output.artefact, exist_ok=True)
-        train(data=params.data,
-             model_name=params.model,
-             model_file=output.model_file,
-             artefacts=Path(output.artefact))
+        train(
+            data_type=params.data,
+            model_name=params.model,
+            model_file=output.model_file,
+            artefacts=Path(output.artefact)
+            )
 
 rule train_all:
     input:
