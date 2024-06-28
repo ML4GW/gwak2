@@ -6,12 +6,12 @@ model_params = {
         "num_timesteps": 10,
         "bottleneck": 5
     },
-    "background": {
-        "signal": None,
-        "model": "FAT",
-        "num_timesteps": 20,
-        "bottleneck": 10
-    }
+    # "background": {
+    #     "signal": None,
+    #     "model": "FAT",
+    #     "num_timesteps": 20,
+    #     "bottleneck": 10
+    # }
 }
 
 rule train:

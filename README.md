@@ -47,6 +47,11 @@ If you **do have** `Miniconda` already installed on your machine, follow those s
 - checkout this repo
 ```
 $ git clone git@github.com:ML4GW/gwak2.git
+& cd gwak2
+```
+- clone submodules (such as `ml4gw`)
+```
+git submodule update --init --recursive
 ```
 - create a new `Conda` environment
 ```
@@ -58,9 +63,4 @@ $ conda activate gwak
 $ pip install -e .
 ```
 
-Now you are ready to gwak!
-
-
-## Running
-
-
+Now you are ready to *gwak*!
