@@ -167,3 +167,5 @@ cython_debug/
 
 # ignore output folders with artefacts
 *output/
+lightning_logs/
+wandb/

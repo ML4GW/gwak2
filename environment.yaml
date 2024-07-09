@@ -17,4 +17,5 @@ dependencies:
     - snakemake==8.14.0
     - matplotlib==3.7.1
     - numpy==1.26.4
+    - lightning==2.3.2
     - setGPU

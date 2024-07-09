@@ -1,19 +1,23 @@
 import argparse
 import numpy as np
+from pathlib import Path
 from typing import Callable, List, Optional
 
+import wandb
 import torch
-import torch.optim as optim
+import lightning as L
+from lightning.pytorch.loggers import WandbLogger
 
 import ml4gw
 from ml4gw.dataloading import Hdf5TimeSeriesDataset
 import ml4gw.waveforms as waveforms
 from ml4gw.transforms import SpectralDensity, Whiten
 from ml4gw.gw import compute_observed_strain, get_ifo_geometry
-from pathlib import Path
 
 import models
+import dataloader
 from gwak.data import prior
+
 
 def train(
     data_type: str,
@@ -29,141 +33,169 @@ def train(
     fftlength: float = 2,
     fduration: float = 1, # whitening parameter: how much data to cut off,
 ):
+    for i in range(5):
+        # start a new wandb run to track this script
+        # wandb.init(
+        #     # set the wandb project where this run will be logged
+        #     project="gwak2.0",
+        #     name=f'run_{i}',
+        #     # track hyperparameters and run metadata
+        #     config={
+        #     "learning_rate": 0.002,
+        #     "architecture": "SineGaussian",
+        #     "dataset": "SG injections",
+        #     "epochs": 20,
+        #     }
+        # )
 
-    data_dir = Path(data_dir)
-    print(f'Running training on {data_dir}')
+        # config = wandb.config
 
-    kernel_size = (psd_length + fduration + kernel_length) * sample_rate
-    batches_per_epoch = 128
+        # data_dir = Path(data_dir)
+        # print(f'Running training on {data_dir}')
 
-    # create training dataloader
-    dataloader = Hdf5TimeSeriesDataset(
-        fnames = list(data_dir.glob('*.hdf5')),
-        channels = ifos,
-        kernel_size = int(kernel_size),
-        batch_size = batch_size,
-        batches_per_epoch = batches_per_epoch, # ??
-        coincident = False
-    )
+        # kernel_size = (psd_length + fduration + kernel_length) * sample_rate
+        # batches_per_epoch = 128
 
-    num_workers = 5
-    dataloader = torch.utils.data.DataLoader(
-        dataloader, num_workers=num_workers, pin_memory=False
-    )
+        # # create training dataloader
+        # dataloader = Hdf5TimeSeriesDataset(
+        #     fnames = list(data_dir.glob('*.hdf5')),
+        #     channels = ifos,
+        #     kernel_size = int(kernel_size),
+        #     batch_size = batch_size,
+        #     batches_per_epoch = batches_per_epoch, # ??
+        #     coincident = False
+        # )
 
-    # psd estimator
-    # takes tensor of shape (batch_size, num_ifos, psd_length)
-    spectral_density = SpectralDensity(
-        sample_rate,
-        fftlength,
-        average = 'median'
-    ).to('cuda')
+        # num_workers = 5
+        # dataloader = torch.utils.data.DataLoader(
+        #     dataloader, num_workers=num_workers, pin_memory=False
+        # )
 
-    # create whitener
-    whitener = Whiten(
-        fduration,
-        sample_rate,
-        highpass = 30,
-    ).to('cuda')
+        # # psd estimator
+        # # takes tensor of shape (batch_size, num_ifos, psd_length)
+        # spectral_density = SpectralDensity(
+        #     sample_rate,
+        #     fftlength,
+        #     average = 'median'
+        # ).to('cuda')
 
-    # data generation
-    data = getattr(waveforms, data_type)(sample_rate, duration=kernel_length + fduration)
+        # # create whitener
+        # whitener = Whiten(
+        #     fduration,
+        #     sample_rate,
+        #     highpass = 30,
+        # ).to('cuda')
 
-    # priors
-    signal_prior = getattr(prior, data_type)()
-    intrinsic_prior = signal_prior.intrinsic_prior
-    extrinsic_prior = signal_prior.extrinsic_prior
+        # # data generation
+        # data = getattr(waveforms, data_type)(sample_rate, duration=kernel_length + fduration)
 
-    # loading model
-    model_class = getattr(models, model_name)
-    model = model_class(len(ifos), 200, 8).to('cuda')
+        # # priors
+        # signal_prior = getattr(prior, data_type)()
+        # intrinsic_prior = signal_prior.intrinsic_prior
+        # extrinsic_prior = signal_prior.extrinsic_prior
 
-    loss_fn = torch.nn.L1Loss()
-    optimizer = optim.Adam(model.parameters())
+        # # loading model
+        # model_class = getattr(models, model_name)
+        # model = model_class(len(ifos), 200, 8).to('cuda')
 
-    training_history = {
-        'train_loss': []    }
+        # loss_fn = torch.nn.L1Loss()
+        # optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    # training loop
-    epoch_count = 0
-    EPOCHS = 2
+        # training_history = {
+        #     'train_loss': []    }
 
-    for epoch_num in range(EPOCHS):
-        epoch_count += 1
-        epoch_train_loss = 0
-        print(f'Epoch {epoch_count}')
-        for X in dataloader:
-            X = X[0].to('cuda')
-            optimizer.zero_grad()
-            # X is shape (batch_size, num_ifos, kernel_size)
+        # # training loop
+        # epoch_count = 0
 
-            # split X into psd data and data to be whitened
-            split_size = int((kernel_length + fduration) * sample_rate)
-            splits = [X.size(-1) - split_size, split_size]
-            psd_data, X = torch.split(X, splits, dim=-1)
+        # train the model (hint: here are some helpful Trainer arguments for rapid idea iteration)
 
-            # calculate psds
-            psds = spectral_density(psd_data.double())
+        model = models.Autoencoder()
 
-            # sample from prior and generate waveforms
-            parameters = intrinsic_prior.sample(batch_size) # dict[str, torch.tensor]
-            cross, plus = data(**parameters)
+        dataloader = dataloader.SigDataLoader()
 
-            # sample extrinsic parameters
-            ra, dec, psi = extrinsic_prior.sample(batch_size).values()
+        wandb_logger = WandbLogger(log_model='all')
+        trainer = L.Trainer(limit_train_batches=100, max_epochs=1 ) #, logger=wandb_logger)
+        trainer.fit(model=model, datamodule=dataloader)
 
-            # get detector orientations
-            tensors, vertices = get_ifo_geometry(*ifos)
+        for epoch_num in range(config.epochs):
+            epoch_count += 1
+            epoch_train_loss = 0
+            print(f'Epoch {epoch_count}')
+            for X in dataloader:
+                X = X[0].to('cuda')
+                optimizer.zero_grad()
+                # X is shape (batch_size, num_ifos, kernel_size)
 
-            # compute detector responses
-            responses = compute_observed_strain(
-              dec,
-              psi,
-              ra,
-              tensors,
-              vertices,
-              sample_rate,
-              cross=cross.float(),
-              plus=plus.float()
-            ).to('cuda')
+                # split X into psd data and data to be whitened
+                split_size = int((kernel_length + fduration) * sample_rate)
+                splits = [X.size(-1) - split_size, split_size]
+                psd_data, X = torch.split(X, splits, dim=-1)
 
-            # inject into data and whiten
-            injected = X + responses
+                # calculate psds
+                psds = spectral_density(psd_data.double())
 
-            whitened = whitener(injected.double(), psds.double())
+                # sample from prior and generate waveforms
+                parameters = intrinsic_prior.sample(batch_size) # dict[str, torch.tensor]
+                cross, plus = data(**parameters)
 
-            # normalize the input data
-            stds = torch.std(whitened, dim=-1, keepdim=True)
-            whitened = whitened / stds
+                # sample extrinsic parameters
+                ra, dec, psi = extrinsic_prior.sample(batch_size).values()
 
-            response = model(whitened)
-            loss = loss_fn(model(whitened), whitened)
-            epoch_train_loss += loss.item()
-            loss.backward()
-            optimizer.step()
+                # get detector orientations
+                tensors, vertices = get_ifo_geometry(*ifos)
 
-        epoch_train_loss /= batches_per_epoch
-        print(f'Epoch loss is {epoch_train_loss}')
-        training_history['train_loss'].append(epoch_train_loss)
+                # compute detector responses
+                responses = compute_observed_strain(
+                  dec,
+                  psi,
+                  ra,
+                  tensors,
+                  vertices,
+                  sample_rate,
+                  cross=cross.float(),
+                  plus=plus.float()
+                ).to('cuda')
 
-    # save the model
-    torch.save(model.state_dict(), model_file)
+                # inject into data and whiten
+                injected = X + responses
 
-    # plot training history
-    from matplotlib import pyplot as plt
-    epochs = np.linspace(1, epoch_count, epoch_count)
-    plt.plot(epochs, np.array(training_history[
-            'train_loss']), label='Training loss')
-    plt.legend()
-    plt.xlabel('Epochs', fontsize=15)
-    plt.ylabel('Loss', fontsize=15)
-    plt.grid()
-    plt.savefig(artefacts/'training_loss.pdf')
-    plt.clf()
+                whitened = whitener(injected.double(), psds.double())
 
-    plt.plot(model(whitened)[0,0,:].cpu().detach().numpy(), label='reco')
-    plt.plot(whitened[0,0,:].cpu().detach().numpy(), label='reco')
-    plt.legend()
-    plt.grid()
-    plt.savefig(artefacts/'reconstruction.pdf')
-    plt.clf()
+                # normalize the input data
+                stds = torch.std(whitened, dim=-1, keepdim=True)
+                whitened = whitened / stds
+
+                response = model(whitened)
+                loss = loss_fn(model(whitened), whitened)
+                epoch_train_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+
+            epoch_train_loss /= batches_per_epoch
+            wandb.log({"loss": epoch_train_loss})
+            print(f'Epoch loss is {epoch_train_loss}')
+            training_history['train_loss'].append(epoch_train_loss)
+
+        # save the model
+        torch.save(model.state_dict(), model_file)
+
+        # plot training history
+        from matplotlib import pyplot as plt
+        epochs = np.linspace(1, epoch_count, epoch_count)
+        plt.plot(epochs, np.array(training_history[
+                'train_loss']), label='Training loss')
+        plt.legend()
+        plt.xlabel('Epochs', fontsize=15)
+        plt.ylabel('Loss', fontsize=15)
+        plt.grid()
+        plt.savefig(artefacts/'training_loss.pdf')
+        plt.clf()
+
+        plt.plot(model(whitened)[0,0,:].cpu().detach().numpy(), label='reco')
+        plt.plot(whitened[0,0,:].cpu().detach().numpy(), label='reco')
+        plt.legend()
+        plt.grid()
+        plt.savefig(artefacts/'reconstruction.pdf')
+        plt.clf()
+
+        wandb.finish()
