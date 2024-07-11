@@ -5,8 +5,7 @@ import dataloader
 
 def cli_main():
 
-    cli = LightningCLI(save_config_kwargs={"overwrite": True})
-    # cli = LightningCLI(models.Autoencoder, dataloader.GwakDataloader)
+    cli = LightningCLI()
 
 
 if __name__ == "__main__":
