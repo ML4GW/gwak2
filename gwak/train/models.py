@@ -1,14 +1,29 @@
+import os
 import time
+from typing import Sequence
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-import lightning as L
+import lightning.pytorch as pl
 
 
-class LargeLinear(L.LightningModule):
+class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
+
+    def on_train_end(self, trainer, pl_module):
+        torch.cuda.empty_cache()
+
+        module = pl_module.__class__.load_from_checkpoint(
+            self.best_model_path, arch=pl_module.model, metric=pl_module.metric
+        )
+
+        save_dir = trainer.logger.log_dir or trainer.logger.save_dir
+        torch.save(module.model.state_dict(), os.path.join(save_dir, 'model.pt'))
+
+
+class LargeLinear(pl.LightningModule):
 
     def __init__(self, num_ifos, num_timesteps, bottleneck):
         super(LargeLinear, self).__init__()
@@ -142,7 +157,7 @@ class Decoder(nn.Module):
         return x
 
 
-class Autoencoder(L.LightningModule):
+class Autoencoder(pl.LightningModule):
 
     def __init__(self, num_ifos=2, num_timesteps=200, bottleneck=8):
         super().__init__()
@@ -150,7 +165,7 @@ class Autoencoder(L.LightningModule):
         self.num_timesteps = num_timesteps
         self.num_ifos = num_ifos
         self.bottleneck = bottleneck
-        self.encoder = Encoder(
+        self.model = Encoder(
             seq_len=num_timesteps, n_features=num_ifos, embedding_dim=bottleneck)
         self.decoder = Decoder(
             seq_len=num_timesteps, n_features=num_ifos, input_dim=bottleneck)
@@ -159,70 +174,122 @@ class Autoencoder(L.LightningModule):
         x = batch
 
         x = x.transpose(1, 2)
-        x = self.encoder(x)
+        x = self.model(x)
         x = self.decoder(x)
 
         x = x.transpose(1, 2)
 
         loss_fn = torch.nn.L1Loss()
 
-        loss = loss_fn(rec, x)
+        self.metric = loss_fn(batch, x)
 
-        self.log('train_loss', loss)
-        return loss
+        self.log(
+            'train_loss',
+            self.metric,
+            on_epoch=True,
+            )
+
+        return self.metric
+
+    def validation_step(self, batch, batch_idx):
+        x = batch
+
+        x = x.transpose(1, 2)
+        x = self.model(x)
+        x = self.decoder(x)
+
+        x = x.transpose(1, 2)
+
+        loss_fn = torch.nn.L1Loss()
+
+        loss = loss_fn(batch, x)
+
+        self.log(
+            'val_loss',
+            loss,
+            on_epoch=True,
+            sync_dist=True
+            )
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters())
         return optimizer
 
+    def configure_callbacks(self) -> Sequence[pl.Callback]:
+        # checkpoint for saving best model
+        # that will be used for downstream export
+        # and inference tasks
+        # checkpoint for saving multiple best models
+        callbacks = []
 
-class gwak1(L.LightningModule):
+        # if using ray tune don't append lightning
+        # model checkpoint since we'll be using ray's
+        checkpoint = ModelCheckpoint(
+            monitor='val_loss',
+            save_last=True,
+            auto_insert_metric_name=False
+            )
+
+        callbacks.append(checkpoint)
+
+        return callbacks
+
+
+class gwak1(pl.LightningModule):
 
     def __init__(self, num_ifos=2, num_timesteps=200, bottleneck=6):
 
         super().__init__()
 
-        self.bbh = Autoencoder(num_ifos, num_timesteps, bottleneck)
-        self.sghf = Autoencoder(num_ifos, num_timesteps, bottleneck)
-        self.sglf = Autoencoder(num_ifos, num_timesteps, bottleneck)
+        self.arch = Autoencoder(num_ifos, num_timesteps, bottleneck)
+        # self.bbh = Autoencoder(num_ifos, num_timesteps, bottleneck)
+        # self.sghf = Autoencoder(num_ifos, num_timesteps, bottleneck)
+        # self.sglf = Autoencoder(num_ifos, num_timesteps, bottleneck)
 
-        self.background = LargeLinear(num_ifos, num_timesteps, bottleneck)
-        self.glitches = LargeLinear(num_ifos, num_timesteps, bottleneck)
+        # self.background = LargeLinear(num_ifos, num_timesteps, bottleneck)
+        # self.glitches = LargeLinear(num_ifos, num_timesteps, bottleneck)
 
     def training_step(self, batch, batch_idx):
 
         data_type = 'background'
 
-        x, _ = batch
-        rec = x
-        if data_type == 'bbh':
-            rec = self.bbh.forward(x)
+        # x, _ = batch
+        # rec = self.bbh.forward(x)
 
-        elif data_type == 'sghf':
-            rec = self.sghf.forward(x)
 
-        elif data_type == 'sglf':
-            rec = self.sglf.forward(x)
+        # if data_type == 'bbh':
+        #     rec = self.bbh.forward(x)
 
-        elif data_type == 'background':
-            return self.background.training_step(batch, batch_idx)
+        # elif data_type == 'sghf':
+        #     rec = self.sghf.forward(x)
 
-        elif data_type == 'glitches':
-            rec = self.glitches.forward(x)
+        # elif data_type == 'sglf':
+        #     rec = self.sglf.forward(x)
 
-        loss_fn = torch.nn.L1Loss()
+        # elif data_type == 'background':
 
-        loss = loss_fn(rec, x)
+        return self.arch.training_step(batch, batch_idx)
 
-        self.log('train_loss', loss)
-        return loss
+        # elif data_type == 'glitches':
+        #     rec = self.glitches.forward(x)
+
+        # loss_fn = torch.nn.L1Loss()
+
+        # loss = loss_fn(rec, x)
+
+        # self.log('train_loss', loss)
+        # return loss
+
+    def validation_step(self, batch, batch_idx):
+
+        return self.arch.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters())
         return optimizer
 
 
-class gwak2(L.LightningModule):
+class gwak2(pl.LightningModule):
 
     def __init__(self, ):
 

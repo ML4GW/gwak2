@@ -1,261 +1,176 @@
-from collections.abc import Sequence
-from pathlib import Path
-from typing import Callable, Optional, Tuple, TypeVar
-
-import h5py
-import lightning.pytorch as pl
+import argparse
 import numpy as np
+from pathlib import Path
+from typing import Callable, List, Optional
+
+import wandb
 import torch
-from waveforms import FrequencyDomainWaveformGenerator
+import lightning.pytorch as pl
+from lightning.pytorch.loggers import WandbLogger
 
-from ml4gw import gw
-from ml4gw.dataloading import InMemoryDataset
-from ml4gw.transforms import ChannelWiseScaler
-from ml4gw.waveforms import IMRPhenomD, TaylorF2
-from mlpe.data.transforms import Preprocessor
-from mlpe.injection.priors import nonspin_bbh_chirp_mass_q_parameter_sampler
+import ml4gw
+from ml4gw.dataloading import Hdf5TimeSeriesDataset
+import ml4gw.waveforms as waveforms
+from ml4gw.transforms import SpectralDensity, Whiten
+from ml4gw.gw import compute_observed_strain, get_ifo_geometry
 
-Tensor = TypeVar("T", np.ndarray, torch.Tensor)
-
-def split(X: Tensor, frac: float, axis: int) -> Tuple[Tensor, Tensor]:
-    """
-    Split an array into two parts along the given axis
-    by an amount specified by `frac`. Generic to both
-    numpy arrays and torch Tensors.
-    """
-    size = int(frac * X.shape[axis])
-    if isinstance(X, np.ndarray):
-        return np.split(X, [size], axis=axis)
-    else:
-        splits = [size, X.shape[axis] - size]
-        return torch.split(X, splits, dim=axis)
+import models
+import dataloader
+from gwak.data import prior
 
 
-class GWAKInMemoryDataset(InMemoryDataset):
+class GwakDataloader(pl.LightningDataModule):
+
     def __init__(
         self,
-        X: np.ndarray,
-        waveform_generator: FrequencyDomainWaveformGenerator,
-        prior: dict,
-        kernel_size: int,
-        preprocessor: Optional[Callable] = None,
-        batch_size: int = 32,
-        batches_per_epoch: Optional[int] = None,
-        coincident: bool = True,
-        shuffle: bool = True,
-        device: str = "cpu",
-    ) -> None:
-        super().__init__(
-            X,
-            kernel_size,
-            batch_size=batch_size,
-            stride=1,
-            batches_per_epoch=batches_per_epoch,
-            coincident=coincident,
-            shuffle=shuffle,
-            device=device,
-        )
-        self.waveform_generator = waveform_generator
-        self.preprocessor = preprocessor
-        self.prior = prior
-        self.device = device
-
-        self.tensors, self.vertices = gw.get_ifo_geometry("H1", "L1")
-        self.tensors = self.tensors.to(self.device)
-        self.vertices = self.vertices.to(self.device)
-
-    def sample_waveforms(self, N: int):
-        # sample parameters from prior
-        parameters = self.prior(N)
-        intrinsic_parameters = torch.vstack(
-            (
-                parameters["chirp_mass"],
-                parameters["mass_ratio"],
-                #parameters["mass_1"],
-                #parameters["mass_2"],
-                parameters["a_1"],
-                parameters["a_2"],
-                parameters["luminosity_distance"],
-                parameters["phase"],
-                parameters["theta_jn"],
-            )
-        )
-        # FIXME: generalize to other parameter combinations
-        # generate intrinsic waveform
-        plus, cross = self.waveform_generator.time_domain_strain(
-            *intrinsic_parameters
-        )
-        dec_psi_ra = torch.vstack(
-            (
-                parameters["dec"],
-                parameters["psi"],
-                parameters["phi"]
-            )
-        )
-
-        waveforms = gw.compute_observed_strain(
-            *dec_psi_ra,
-            detector_tensors=self.tensors,
-            detector_vertices=self.vertices,
-            sample_rate=self.waveform_generator.sampling_frequency,
-            plus=plus,
-            cross=cross,
-        )
-        # FIXME: delta function distributions are removed, make it cleaner
-        intrinsic_parameters = torch.vstack(
-            (intrinsic_parameters[:2], intrinsic_parameters[4:]))
-        return torch.vstack((intrinsic_parameters, dec_psi_ra)), waveforms
-
-    def waveform_injector(self, X):
-        N = len(X)
-        kernel_size = X.shape[-1]
-        parameters, waveforms = self.sample_waveforms(N)
-        start = 0
-        stop = kernel_size
-        waveforms = waveforms[:, :, start:stop]
-        X += waveforms
-        return parameters, X, waveforms
-
-    def __next__(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        X = super().__next__()
-        parameters, X, waveforms = self.waveform_injector(X)
-        # whiten and scale parameters
-        if self.preprocessor:
-            transformed_X, transformed_parameters = self.preprocessor(
-                X, parameters.T
-            )
-        return transformed_X.to(dtype=torch.float32), transformed_parameters.to(dtype=torch.float32)
-
-
-class SignalDataSet(pl.LightningDataModule):
-    def __init__(
-        self,
-        background_path: Path,
-        ifos: Sequence[str],
-        valid_frac: float,
-        batch_size: int,
-        batches_per_epoch: int,
-        sampling_frequency: float,
-        time_duration: float,
-        f_min: float,
-        f_max: float,
-        f_ref: float,
-        approximant=TaylorF2,
-        prior_func: callable = nonspin_bbh_chirp_mass_q_parameter_sampler,
-    ) -> None:
+        data_dir='/home/ethan.marx/aframe/data/train/background',
+        sample_rate=2048,
+        kernel_length=200/2048,
+        psd_length=64,
+        fduration=1,
+        fftlength=2,
+        batch_size=128,
+        batches_per_epoch=128,
+        num_workers=5,
+    ):
         super().__init__()
-        self.save_hyperparameters()
-        self.background_path = background_path
-        self.num_ifos = len(ifos)
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.prior_func = prior_func  # instantiate in setup
+        self.train_fnames, self.val_fnames = self.train_val_split(data_dir)
+        self.sample_rate = sample_rate
+        self.kernel_length = kernel_length
+        self.psd_length = psd_length
+        self.fduration = fduration
+        self.fftlength = fftlength
+        self.batch_size = batch_size
+        self.batches_per_epoch = batches_per_epoch
+        self.num_workers = num_workers
 
-        self.tensors, self.vertices = gw.get_ifo_geometry(*ifos)
 
-    def load_background(self):
-        background = []
-        with h5py.File(self.background_path) as f:
-            for ifo in self.hparams.ifos:
-                hoft = f[ifo][:]
-                background.append(hoft)
-        return torch.from_numpy(np.stack(background)).to(dtype=torch.float64)
+    def train_val_split(self, data_dir, val_split=0.2):
 
-    def set_waveform_generator(self):
-        self.waveform_generator = FrequencyDomainWaveformGenerator(
-            self.hparams.time_duration,
-            self.hparams.sampling_frequency,
-            self.hparams.f_min,
-            self.hparams.f_max,
-            self.hparams.f_ref,
-            self.hparams.approximant,
-            start_time=-0.5,
-            post_padding=1.0,
-            device=self.device,
-        )
+        all_files = list(Path(data_dir).glob('*.hdf5'))
+        n_all_files = len(all_files)
+        n_train_files = int(n_all_files * (1 - val_split))
 
-    def setup(self, stage: str) -> None:
-        # load background and fit whitener
-        background = self.load_background()
-        self.background, self.valid_background = split(
-            background, 1 - self.hparams.valid_frac, 1
-        )
-        self.valid_background, self.test_background = split(
-            self.valid_background, 0.5, 1
-        )
-        self.standard_scaler = ChannelWiseScaler(8)  # FIXME: don't hardcode
-        # self.standard_scaler = torch.nn.Identity()
-        # FIXME: clean up the standard scaler fitting
-        self.prior = self.prior_func(self.device)
-        _samples = self.prior(10000)
-        _samples = torch.vstack((
-            _samples["chirp_mass"],
-            _samples["mass_ratio"],
-            #_samples["mass_1"],
-            #_samples["mass_2"],
-            _samples["luminosity_distance"],
-            _samples["phase"],
-            _samples["theta_jn"],
-            _samples["dec"],
-            _samples["psi"],
-            _samples["phi"]))
-        self.standard_scaler.fit(_samples)
-        self.standard_scaler.to(self.device)
-        self.preprocessor = Preprocessor(
-            self.num_ifos,
-            self.hparams.time_duration + 1,
-            self.hparams.sampling_frequency,
-            scaler=self.standard_scaler,
-        )
-        self.preprocessor.whitener.fit(1, *background, fftlength=2)
-        self.preprocessor.whitener.to(self.device)
-        # set waveform generator and initialize in-memory datasets
-        self.set_waveform_generator()
-        # FIXME: check if this is OK
-        self.training_dataset = GWAKInMemoryDataset(
-            self.background,
-            waveform_generator=self.waveform_generator,
-            prior=self.prior,
-            preprocessor=self.preprocessor,
-            kernel_size=self.waveform_generator.number_of_samples
-            + self.waveform_generator.number_of_post_padding,
-            batch_size=self.hparams.batch_size,
-            batches_per_epoch=self.hparams.batches_per_epoch,
-            coincident=False,
-            shuffle=True,
-            device=self.device,
-        )
-        self.validation_dataset = GWAKInMemoryDataset(
-            self.valid_background,
-            waveform_generator=self.waveform_generator,
-            prior=self.prior,
-            preprocessor=self.preprocessor,
-            kernel_size=self.waveform_generator.number_of_samples
-            + self.waveform_generator.number_of_post_padding,
-            batch_size=self.hparams.batch_size,
-            batches_per_epoch=self.hparams.batches_per_epoch,
-            coincident=False,
-            shuffle=False,
-            device=self.device,
-        )
-        self.test_dataset = GWAKInMemoryDataset(
-            self.test_background,
-            waveform_generator=self.waveform_generator,
-            prior=self.prior,
-            preprocessor=self.preprocessor,
-            kernel_size=self.waveform_generator.number_of_samples
-            + self.waveform_generator.number_of_post_padding,
-            batch_size=1,
-            batches_per_epoch=self.hparams.batches_per_epoch,
-            coincident=False,
-            shuffle=False,
-            device=self.device,
-        )
+        return all_files[:n_train_files], all_files[n_train_files:]
 
-    def train_dataloader(self):
-        return self.training_dataset
+    def generate_waveforms(self, batch_size):
+        # data generation
+        data = waveforms.SineGaussian(self.sample_rate, duration=self.kernel_length + self.fduration)
+
+
+        # priors
+        signal_prior = prior.SineGaussian()
+
+        intrinsic_prior = signal_prior.intrinsic_prior
+        extrinsic_prior = signal_prior.extrinsic_prior
+
+        # sample extrinsic parameters
+        ra, dec, psi = extrinsic_prior.sample(batch_size).values()
+
+        # get detector orientations
+        ifos = ['H1', 'L1']
+        tensors, vertices = get_ifo_geometry(*ifos)
+
+        # sample from prior and generate waveforms
+        parameters = intrinsic_prior.sample(batch_size) # dict[str, torch.tensor]
+        cross, plus = data(**parameters)
+
+        # compute detector responses
+        responses = compute_observed_strain(
+          dec,
+          psi,
+          ra,
+          tensors,
+          vertices,
+          self.sample_rate,
+          cross=cross.float(),
+          plus=plus.float()
+        ).to('cuda')
+
+        return responses
+
+    def inject(self, batch, waveforms):
+
+        # split batch into psd data and data to be whitened
+        split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
+        splits = [batch.size(-1) - split_size, split_size]
+        psd_data, batch = torch.split(batch, splits, dim=-1)
+
+        # psd estimator
+        # takes tensor of shape (batch_size, num_ifos, psd_length)
+        spectral_density = SpectralDensity(
+            self.sample_rate,
+            self.fftlength,
+            average = 'median'
+        ).to('cuda')
+
+        # calculate psds
+        psds = spectral_density(psd_data.double())
+
+        # inject into data and whiten
+        injected = batch + waveforms
+
+
+        # create whitener
+        whitener = Whiten(
+            self.fduration,
+            self.sample_rate,
+            highpass = 30,
+        ).to('cuda')
+
+        whitened = whitener(injected.double(), psds.double())
+
+        # normalize the input data
+        stds = torch.std(whitened, dim=-1, keepdim=True)
+        whitened = whitened / stds
+
+        return whitened
+
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+
+        if self.trainer.training or self.trainer.validating or self.trainer.sanity_checking:
+            # unpack the batch
+            [batch] = batch
+            # generate waveforms
+            waveforms = self.generate_waveforms(batch.shape[0])
+            # inject waveforms; maybe also whiten data preprocess etc..
+            batch = self.inject(batch, waveforms)
+
+            return batch
 
     def val_dataloader(self):
-        return self.validation_dataset
+        dataset = Hdf5TimeSeriesDataset(
+            self.val_fnames,
+            channels=['H1', 'L1'],
+            kernel_size=int((self.psd_length + self.fduration + self.kernel_length) * self.sample_rate), # int(self.hparams.sample_rate * self.sample_length),
+            batch_size=self.batch_size,
+            batches_per_epoch=self.batches_per_epoch,
+            coincident=False,
+        )
 
-    def test_dataloader(self):
-        return self.test_dataset
+        pin_memory = isinstance(
+            self.trainer.accelerator, pl.accelerators.CUDAAccelerator
+        )
+        dataloader = torch.utils.data.DataLoader(
+            dataset, num_workers=self.num_workers, pin_memory=False
+        )
+        return dataloader
+
+    def train_dataloader(self):
+
+        dataset = Hdf5TimeSeriesDataset(
+                self.train_fnames,
+                channels=['H1', 'L1'],
+                kernel_size=int((self.psd_length + self.fduration + self.kernel_length) * self.sample_rate),#int(self.sample_rate * self.sample_length),
+                batch_size=self.batch_size,
+                batches_per_epoch=self.batches_per_epoch,
+                coincident=False,
+            )
+
+        pin_memory = isinstance(
+            self.trainer.accelerator, pl.accelerators.CUDAAccelerator
+        )
+        dataloader = torch.utils.data.DataLoader(
+            dataset, num_workers=self.num_workers, pin_memory=False
+        )
+        return dataloader

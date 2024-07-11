@@ -16,7 +16,24 @@ model_params = {
 
 import os
 from pathlib import Path
-from gwak.train.cli import train
+# from gwak.train.cli import train
+
+# rule train:
+#     params:
+#         bottleneck = lambda wildcards: model_params[wildcards.data]['bottleneck'],
+#         model = lambda wildcards: model_params[wildcards.data]['model'],
+#         data = lambda wildcards: model_params[wildcards.data]['signal'],
+#     output:
+#         model_file = 'output/{data}/model.pt',
+#         artefact = directory('output/{data}/')
+#     run:
+#         os.makedirs(output.artefact, exist_ok=True)
+#         train(
+#             data_type=params.data,
+#             model_name=params.model,
+#             model_file=output.model_file,
+#             artefacts=Path(output.artefact)
+#             )
 
 rule train:
     params:
@@ -24,16 +41,13 @@ rule train:
         model = lambda wildcards: model_params[wildcards.data]['model'],
         data = lambda wildcards: model_params[wildcards.data]['signal'],
     output:
-        model_file = 'output/{data}/model.pt',
         artefact = directory('output/{data}/')
-    run:
-        os.makedirs(output.artefact, exist_ok=True)
-        train(
-            data_type=params.data,
-            model_name=params.model,
-            model_file=output.model_file,
-            artefacts=Path(output.artefact)
-            )
+    shell:
+        'python train/cli.py fit \
+            --trainer.strategy ddp_find_unused_parameters_true \
+            --trainer.max_epochs 1 \
+            --trainer.logger WandbLogger \
+            --trainer.logger.save_dir {output.artefact}'
 
 rule train_all:
     input:

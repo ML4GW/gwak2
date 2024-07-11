@@ -6,7 +6,7 @@ from torch.distributions.uniform import Uniform
 from ml4gw.distributions import Cosine
 
 
-class Prior():
+class Prior:
 
     def __init__(self, **kwargs):
 
