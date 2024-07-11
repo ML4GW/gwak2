@@ -1,7 +1,5 @@
 from lightning.pytorch.cli import LightningCLI
 
-import models
-import dataloader
 
 def cli_main():
 
