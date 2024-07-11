@@ -159,7 +159,7 @@ class Decoder(nn.Module):
 
 class Autoencoder(pl.LightningModule):
 
-    def __init__(self, num_ifos=2, num_timesteps=200, bottleneck=8):
+    def __init__(self, num_ifos: int = 2, num_timesteps: int = 200, bottleneck: int = 8):
         super().__init__()
 
         self.num_timesteps = num_timesteps
