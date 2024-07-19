@@ -9,12 +9,12 @@ wildcard_constraints:
 rule train:
     input:
         config = 'train/configs/{datatype}.yaml'
-    output:
+    log:
         artefact = directory('output/{datatype}/')
     shell:
         'python train/cli.py fit --config {input.config} \
-            --trainer.logger.save_dir {output.artefact}'
+            --trainer.logger.save_dir {log.artefact}'
 
 rule train_all:
     input:
-        expand(rules.train.output, datatype='sine_gaussian')
+        expand(rules.train.log, datatype='background')

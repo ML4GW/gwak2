@@ -6,6 +6,10 @@ from torch.distributions.uniform import Uniform
 from ml4gw.distributions import Cosine
 
 
+class BasePrior:
+    def __init__(self):
+        pass
+
 class Prior:
 
     def __init__(self, **kwargs):
@@ -24,11 +28,39 @@ class Prior:
         return self.sampled_params
 
 
-class SineGaussian:
+class SineGaussianHighFrequency(BasePrior):
 
     def __init__(self):
     # something with sample method that returns dict that maps
     # parameter name to tensor of parameter names
+        super().__init__()
+        self.intrinsic_prior = Prior(
+            hrss = Uniform(1e-21, 2e-21),
+            quality = Uniform(5, 75),
+            frequency = Uniform(512, 1024),
+            phase = Uniform(0, 2 * torch.pi),
+            eccentricity = Uniform(0, 0.01),
+        )
+
+        self.extrinsic_prior = Prior(
+            ra = Uniform(0, 2 * torch.pi),
+            dec = Cosine(),
+            psi = Uniform(0, 2 * torch.pi)
+        )
+
+    def intrinsic_prior(self):
+        return self.intrinsic_prior
+
+    def extrinsic_prior(self):
+        return self.extrinsic_prior
+
+
+class SineGaussianLowFrequency(BasePrior):
+
+    def __init__(self):
+    # something with sample method that returns dict that maps
+    # parameter name to tensor of parameter names
+        super().__init__()
         self.intrinsic_prior = Prior(
             hrss = Uniform(1e-21, 2e-21),
             quality = Uniform(5, 75),

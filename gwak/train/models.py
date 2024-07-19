@@ -38,7 +38,7 @@ class LargeLinear(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        x, _ = batch
+        x = batch
         batch_size = x.shape[0]
 
         x = x.reshape(-1, self.num_timesteps * self.num_ifos)
@@ -52,10 +52,42 @@ class LargeLinear(pl.LightningModule):
 
         loss_fn = torch.nn.L1Loss()
 
-        loss = loss_fn(rec, x)
+        loss = loss_fn(batch, x)
 
-        self.log("train_loss", loss)
+        self.log(
+            'train_loss',
+            loss,
+            sync_dist=True)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+
+        x = batch
+        batch_size = x.shape[0]
+
+        x = x.reshape(-1, self.num_timesteps * self.num_ifos)
+        x = F.relu(self.Linear1(x))
+        x = F.relu(self.Linear2(x))
+        x = F.relu(self.Linear3(x))
+        x = F.relu(self.Linear4(x))
+        x = F.tanh(self.Linear5(x))
+        x = (self.Linear6(x))
+        x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
+
+        loss_fn = torch.nn.L1Loss()
+
+        loss = loss_fn(batch, x)
+
+        self.log(
+            'val_loss',
+            loss,
+            on_epoch=True,
+            sync_dist=True
+            )
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters())
+        return optimizer
 
 
 class Encoder(nn.Module):
@@ -192,6 +224,7 @@ class Autoencoder(pl.LightningModule):
             'train_loss',
             self.metric,
             on_epoch=True,
+            sync_dist=True
             )
 
         return self.metric
@@ -247,7 +280,11 @@ class gwak2(pl.LightningModule):
         super().__init__()
 
     def training_step(self, batch, batch_idx):
-        self.log('train_loss', loss)
+        self.log(
+            'train_loss',
+            loss,
+            sync_dist=True)
+
         return loss
 
     def configure_optimizers(self):
