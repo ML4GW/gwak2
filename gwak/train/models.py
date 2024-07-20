@@ -10,6 +10,10 @@ import torch.optim as optim
 import lightning.pytorch as pl
 
 
+class GwakBaseModelClass(pl.LightningModule):
+    pass
+
+
 class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
 
     def on_train_end(self, trainer, pl_module):
@@ -23,7 +27,7 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
         torch.save(module.model.state_dict(), os.path.join(save_dir, 'model.pt'))
 
 
-class LargeLinear(pl.LightningModule):
+class LargeLinear(GwakBaseModelClass):
 
     def __init__(self, num_ifos, num_timesteps, bottleneck):
         super(LargeLinear, self).__init__()
@@ -189,7 +193,7 @@ class Decoder(nn.Module):
         return x
 
 
-class Autoencoder(pl.LightningModule):
+class Autoencoder(GwakBaseModelClass):
 
     def __init__(
         self,
@@ -273,7 +277,7 @@ class Autoencoder(pl.LightningModule):
         return callbacks
 
 
-class gwak2(pl.LightningModule):
+class gwak2(GwakBaseModelClass):
 
     def __init__(self, ):
 

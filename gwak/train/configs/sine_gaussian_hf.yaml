@@ -2,7 +2,7 @@
 seed_everything: 0
 trainer:
   accelerator: gpu
-  devices: [0,1]
+  devices: [1]
   # accelerator: auto
   # devices: auto
   strategy: ddp_find_unused_parameters_true
@@ -31,7 +31,5 @@ data:
     batches_per_epoch: 128
     num_workers: 5
     prior: gwak.data.prior.SineGaussianHighFrequency
-    waveform: ml4gw.waveforms.SineGaussian
-    init_args:
-      sample_rate: 2048
-      duration: 1.09765625
+    waveform:
+      class_path: ml4gw.waveforms.SineGaussian

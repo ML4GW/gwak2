@@ -3,12 +3,13 @@ import logging
 from lightning.pytorch.cli import LightningCLI
 
 from ml4gw import waveforms
-import dataloader
+
 
 def sum_args(a, b):
     return float(a) + float(b)
 
-class GwakCLI(LightningCLI):
+
+class GwakSignalCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
 
         parser.link_arguments(
@@ -30,12 +31,10 @@ def cli_main(args=None):
     logger = logging.getLogger(__name__)
     logger.info('Started')
 
-    cli = GwakCLI(
-        save_config_kwargs={'overwrite': True},
-        args=args
+    cli = GwakSignalCLI(
+            save_config_kwargs={'overwrite': True},
+            args=args
     )
-
-    logger.info('Finished')
 
 
 if __name__ == '__main__':
