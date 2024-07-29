@@ -19,7 +19,7 @@ model:
     num_timesteps: 200
     bottleneck: 8
 data:
-  class_path: dataloader.SineGaussianDataloader
+  class_path: dataloader.SignalDataloader
   init_args:
     data_dir: /home/ethan.marx/aframe/data/train/background
     sample_rate: 2048

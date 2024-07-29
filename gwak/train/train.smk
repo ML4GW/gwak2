@@ -8,7 +8,7 @@ wildcard_constraints:
 CLI = {
     'background': 'train/cli_base.py',
     'glitches': 'train/cli_base.py',
-    'bbh': 'train/cli_signal.py',
+    'bbh': 'train/cli_base.py',
     'sine_gaussian_lf': 'train/cli_signal.py',
     'sine_gaussian_hf': 'train/cli_signal.py',
     }
@@ -26,4 +26,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype='sine_gaussian_lf')
+        expand(rules.train.log, datatype='bbh')

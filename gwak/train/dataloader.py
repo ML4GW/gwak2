@@ -13,6 +13,7 @@ import ml4gw
 from ml4gw.dataloading import Hdf5TimeSeriesDataset
 from ml4gw.transforms import SpectralDensity, Whiten
 from ml4gw.gw import compute_observed_strain, get_ifo_geometry
+from bilby.gw.conversion import bilby_to_lalsimulation_spins
 
 from gwak import data
 
@@ -148,7 +149,7 @@ class GlitchDataloader(GwakBaseDataloader):
         super().__init__(*args, **kwargs)
 
 
-class SineGaussianDataloader(GwakBaseDataloader):
+class SignalDataloader(GwakBaseDataloader):
 
     def __init__(self, prior: data.BasePrior, waveform: torch.nn.Module, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -156,127 +157,27 @@ class SineGaussianDataloader(GwakBaseDataloader):
         self.prior = prior
 
     def generate_waveforms(self, batch_size):
-        # data generation
-        # data = waveforms.SineGaussian(self.sample_rate, duration=self.kernel_length + self.fduration)
-        data = self.waveform
-
-        # priors
-        intrinsic_prior = self.prior.intrinsic_prior
-        extrinsic_prior = self.prior.extrinsic_prior
-
-        # sample extrinsic parameters
-        ra, dec, psi = extrinsic_prior.sample(batch_size).values()
 
         # get detector orientations
         ifos = ['H1', 'L1']
         tensors, vertices = get_ifo_geometry(*ifos)
 
         # sample from prior and generate waveforms
-        parameters = intrinsic_prior.sample(batch_size) # dict[str, torch.tensor]
-        cross, plus = data(**parameters)
+        parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
+
+        cross, plus = self.waveform(**parameters)
 
         # compute detector responses
         responses = compute_observed_strain(
-          dec,
-          psi,
-          ra,
+          parameters['dec'],
+          parameters['psi'],
+          parameters['ra'],
           tensors,
           vertices,
           self.sample_rate,
           cross=cross.float(),
           plus=plus.float()
         ).to('cuda')
-
-        return responses
-
-    def inject(self, batch, waveforms):
-
-        # split batch into psd data and data to be whitened
-        split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
-        splits = [batch.size(-1) - split_size, split_size]
-        psd_data, batch = torch.split(batch, splits, dim=-1)
-
-        # psd estimator
-        # takes tensor of shape (batch_size, num_ifos, psd_length)
-        spectral_density = SpectralDensity(
-            self.sample_rate,
-            self.fftlength,
-            average = 'median'
-        ).to('cuda')
-
-        # calculate psds
-        psds = spectral_density(psd_data.double())
-
-        # inject into data and whiten
-        injected = batch + waveforms
-
-
-        # create whitener
-        whitener = Whiten(
-            self.fduration,
-            self.sample_rate,
-            highpass = 30,
-        ).to('cuda')
-
-        whitened = whitener(injected.double(), psds.double())
-
-        # normalize the input data
-        stds = torch.std(whitened, dim=-1, keepdim=True)
-        whitened = whitened / stds
-
-        return whitened
-
-    def on_after_batch_transfer(self, batch, dataloader_idx):
-
-        if self.trainer.training or self.trainer.validating or self.trainer.sanity_checking:
-            # unpack the batch
-            [batch] = batch
-            # generate waveforms
-            waveforms = self.generate_waveforms(batch.shape[0])
-            # inject waveforms; maybe also whiten data preprocess etc..
-            batch = self.inject(batch, waveforms)
-
-            return batch
-
-
-class BBHDataloader(GwakBaseDataloader):
-
-    def __init__(self, prior, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.prior = prior
-
-    def generate_waveforms(self, batch_size):
-        # data generation
-        data = waveforms.SineGaussian(self.sample_rate, duration=self.kernel_length + self.fduration)
-
-        # priors
-        intrinsic_prior = self.prior.intrinsic_prior
-        extrinsic_prior = self.prior.extrinsic_prior
-
-        # sample extrinsic parameters
-        ra, dec, psi = extrinsic_prior.sample(batch_size).values()
-
-        # get detector orientations
-        ifos = ['H1', 'L1']
-        tensors, vertices = get_ifo_geometry(*ifos)
-
-        # sample from prior and generate waveforms
-        parameters = intrinsic_prior.sample(batch_size) # dict[str, torch.tensor]
-        cross, plus = data(**parameters)
-
-        # compute detector responses
-        responses = compute_observed_strain(
-          dec,
-          psi,
-          ra,
-          tensors,
-          vertices,
-          self.sample_rate,
-          cross=cross.float(),
-          plus=plus.float()
-        ).to('cuda')
-
-        return responses
 
     def inject(self, batch, waveforms):
 
