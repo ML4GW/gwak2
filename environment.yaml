@@ -19,4 +19,4 @@ dependencies:
     - numpy==1.26.4
     - lightning==2.3.2
     - setGPU
-    - jsonargparse["signatures"]==4.29
+    - jsonargparse==4.29
