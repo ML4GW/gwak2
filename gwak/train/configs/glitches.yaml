@@ -2,7 +2,7 @@
 seed_everything: 0
 trainer:
   accelerator: gpu
-  devices: [0,1]
+  devices: [1]
   # accelerator: auto
   # devices: auto
   strategy: ddp_find_unused_parameters_true
@@ -13,13 +13,13 @@ trainer:
   accumulate_grad_batches: 1
 ckpt_path: null
 model:
-  class_path: models.Autoencoder
+  class_path: models.LargeLinear
   init_args:
     num_ifos: 2
     num_timesteps: 200
     bottleneck: 8
 data:
-  class_path: dataloader.BBHDataloader
+  class_path: dataloader.GlitchDataloader
   init_args:
     data_dir: /home/ethan.marx/aframe/data/train/background
     sample_rate: 2048
