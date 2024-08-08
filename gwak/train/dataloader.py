@@ -307,7 +307,7 @@ class SignalDataloader(GwakBaseDataloader):
         ).to('cuda')
 
         logger = logging.getLogger(__name__)
-        logger.info(f'waveforms shape {responses.shape}')
+        #logger.info(f'waveforms shape {responses.shape}')
 
         return responses
 
@@ -319,7 +319,7 @@ class SignalDataloader(GwakBaseDataloader):
         psd_data, batch = torch.split(batch, splits, dim=-1)
 
         logger = logging.getLogger(__name__)
-        logger.info(f'Batch shape {batch.shape}')
+        #logger.info(f'Batch shape {batch.shape}')
 
 
         # psd estimator
@@ -361,6 +361,35 @@ class SignalDataloader(GwakBaseDataloader):
 
             waveforms = self.generate_waveforms(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
+            batch = self.inject(batch, waveforms)
+
+            return batch
+
+class SuperSignalDataLoader(GwakBaseDataloader):
+    def __init__(self, priors: list[data.BasePrior], waveforms: list[torch.nn.Module], tags:list[str], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.children = dict()
+        for tag, prior, waveform in zip(tag, priors, waveforms):
+            # spawn child
+            self.children[tag] = SignalDataloader(prior, waveform, *args, **kwargs)
+
+    def generate_waveforms(self, batch_size):
+        waveforms = dict()
+        for name in self.children.keys():
+            waveforms[name] = self.children[name].generate_waveforms(batch_size)
+        return waveforms
+
+    def inject(self, batch, waveforms):
+        whitened = dict()
+        for name in self.children.keys():
+            whitened[name] = self.children[name].inject(batch, waveforms[name])
+        return whitened
+    
+    def on_after_batch_transfer(self, batch, dataloader_idx):
+        if self.trainer.training or self.trainer.validating or self.trainer.sanity_checking:
+            [batch] = batch
+
+            waveforms = self.inject_waveforms(batch.shape[0])
             batch = self.inject(batch, waveforms)
 
             return batch
