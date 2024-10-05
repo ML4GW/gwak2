@@ -6,6 +6,7 @@ from typing import Callable, List, Optional
 
 import wandb
 import torch
+import torch.nn.functional as F
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
 
@@ -333,9 +334,14 @@ class SignalDataloader(GwakBaseDataloader):
         # calculate psds
         psds = spectral_density(psd_data.double())
 
-        # inject into data and whiten
-        injected = batch + waveforms
+        # Waveform padding
+        bbh_len = waveforms.shape[-1]
+        window_len = splits[1]
+        half = int((window_len - bbh_len)/2)
 
+        first_half, second_half = half, window_len-half-bbh_len
+        waveforms = F.pad(input=waveforms, pad=(first_half, second_half), mode='constant', value=0)
+        injected = batch + waveforms
 
         # create whitener
         whitener = Whiten(
