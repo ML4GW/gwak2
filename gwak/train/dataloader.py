@@ -306,9 +306,6 @@ class SignalDataloader(GwakBaseDataloader):
           plus=plus.float()
         ).to('cuda')
 
-        logger = logging.getLogger(__name__)
-        logger.info(f'waveforms shape {responses.shape}')
-
         return responses
 
     def inject(self, batch, waveforms):
@@ -317,10 +314,6 @@ class SignalDataloader(GwakBaseDataloader):
         split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
         splits = [batch.size(-1) - split_size, split_size]
         psd_data, batch = torch.split(batch, splits, dim=-1)
-
-        logger = logging.getLogger(__name__)
-        logger.info(f'Batch shape {batch.shape}')
-
 
         # psd estimator
         # takes tensor of shape (batch_size, num_ifos, psd_length)

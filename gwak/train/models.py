@@ -11,7 +11,12 @@ import lightning.pytorch as pl
 
 
 class GwakBaseModelClass(pl.LightningModule):
-    pass
+
+    def get_logger(self):
+        logger_name = 'GwakBaseModelClass'
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)
+        return logger
 
 
 class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
