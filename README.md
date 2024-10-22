@@ -68,3 +68,8 @@ As a first step, you can run the training by doing
 $ cd gwak
 $ snakemake -c1 train_all
 ```
+
+- if you want to modify any of the submodules, first do the changes localy and then re-install `gwak` to pick up the changes:
+```
+$ pip install -e .
+```
