@@ -1,6 +1,8 @@
 # lightning.pytorch==2.3.2
 seed_everything: 0
 trainer:
+  callbacks:
+    - class_path: callback.ValidationCallback
   accelerator: gpu
   devices: [1]
   # accelerator: auto
@@ -27,9 +29,10 @@ data:
     psd_length: 64
     fduration: 1
     fftlength: 2
-    batch_size: 128
-    batches_per_epoch: 128
+    batch_size: 8
+    batches_per_epoch: 8
     num_workers: 5
     prior: gwak.data.prior.SineGaussianLowFrequency
     waveform:
       class_path: ml4gw.waveforms.SineGaussian
+    data_saving_file: /home/hongyin.chen/Data/gwak/sin_lf.h5

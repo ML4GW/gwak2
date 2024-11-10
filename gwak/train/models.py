@@ -30,6 +30,7 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
 class LargeLinear(GwakBaseModelClass):
 
     def __init__(self, num_ifos, num_timesteps, bottleneck):
+        self.global_validation_step = 0
         super(LargeLinear, self).__init__()
         self.num_timesteps = num_timesteps
         self.num_ifos = num_ifos
@@ -57,7 +58,7 @@ class LargeLinear(GwakBaseModelClass):
         loss_fn = torch.nn.L1Loss()
 
         loss = loss_fn(batch, x)
-
+        
         self.log(
             'train_loss',
             loss,
@@ -65,7 +66,9 @@ class LargeLinear(GwakBaseModelClass):
         return loss
 
     def validation_step(self, batch, batch_idx):
-
+        
+        self.global_validation_step += 1
+        
         x = batch
         batch_size = x.shape[0]
 

@@ -6,7 +6,7 @@ from lightning.pytorch.cli import LightningCLI
 def cli_main(args=None):
 
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger()
     logger.info('Started')
 
     cli = LightningCLI(
