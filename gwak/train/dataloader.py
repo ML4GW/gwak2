@@ -351,7 +351,7 @@ class SignalDataloader(GwakBaseDataloader):
         ).to('cuda')
 
         logger = logging.getLogger(__name__)
-        logger.info(f'waveforms shape {responses.shape}')
+        # logger.info(f'waveforms shape {responses.shape}')
 
         return responses
 
@@ -363,7 +363,7 @@ class SignalDataloader(GwakBaseDataloader):
         psd_data, batch = torch.split(batch, splits, dim=-1)
 
         logger = logging.getLogger(__name__)
-        logger.info(f'Batch shape {batch.shape}')
+        # logger.info(f'Batch shape {batch.shape}')
 
 
         # psd estimator
@@ -418,7 +418,12 @@ class SignalDataloader(GwakBaseDataloader):
             waveforms = self.generate_waveforms(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.inject(batch, waveforms)
-
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
             if self.trainer.training and (self.data_saving_file is not None):
                 
                 bk_step = f"Training/Step_{self.trainer.global_step:06d}_BK"
@@ -483,6 +488,6 @@ class BBHDataloader(SignalDataloader):
         ).to('cuda')
 
         logger = logging.getLogger(__name__)
-        logger.info(f'waveforms shape {responses.shape}')
+        # logger.info(f'waveforms shape {responses.shape}')
 
         return responses

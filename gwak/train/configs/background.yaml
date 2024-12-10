@@ -3,6 +3,7 @@ seed_everything: 0
 trainer:
   callbacks:
     - class_path: callback.ValidationCallback
+    # - class_path: callback.ModelCheckpoint
   accelerator: gpu
   devices: [1]
   # accelerator: auto
@@ -10,7 +11,7 @@ trainer:
   strategy: ddp_find_unused_parameters_true
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
-  max_epochs: 2
+  max_epochs: 5
   check_val_every_n_epoch: 1
   accumulate_grad_batches: 1
 ckpt_path: null
@@ -23,7 +24,7 @@ model:
 data:
   class_path: dataloader.GwakBaseDataloader
   init_args:
-    data_dir: /home/katya.govorkova/gwak2_background
+    data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
     sample_rate: 2048
     kernel_length: 0.09765625
     psd_length: 64

@@ -68,3 +68,16 @@ As a first step, you can run the training by doing
 $ cd gwak
 $ snakemake -c1 train_all
 ```
+
+# Containerize
+Set the container path
+
+```
+echo "export GWAK_CONTAINER_ROOT=<your/own/path>" >> ~/.bash_profile
+```
+
+To access container simply run 
+
+```
+apptainer shell $GWAK_CONTAINER_ROOT/project.sif
+```

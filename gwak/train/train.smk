@@ -26,4 +26,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype='bbh')
+        expand(rules.train.log, datatype='background')
