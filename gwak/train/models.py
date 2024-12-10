@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 from typing import Sequence
 from collections import OrderedDict
 
@@ -9,6 +10,15 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 import lightning.pytorch as pl
+
+
+class GwakBaseModelClass(pl.LightningModule):
+
+    def get_logger(self):
+        logger_name = 'GwakBaseModelClass'
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)
+        return logger
 
 
 class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
@@ -135,9 +145,6 @@ class Decoder(nn.Module):
         x = torch.cat([Hx, Lx], dim=2)
 
         return x
-
-class GwakBaseModelClass(pl.LightningModule):
-    pass
 
 class LargeLinear(GwakBaseModelClass):
 
