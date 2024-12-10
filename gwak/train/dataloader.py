@@ -1,3 +1,4 @@
+import h5py
 import logging
 import argparse
 import numpy as np
@@ -6,6 +7,7 @@ from typing import Callable, List, Optional
 
 import wandb
 import torch
+import torch.nn.functional as F
 import lightning.pytorch as pl
 from lightning.pytorch.loggers import WandbLogger
 
@@ -31,6 +33,7 @@ class GwakFileDataloader(pl.LightningDataModule):
         batch_size: int,
         batches_per_epoch: int,
         num_workers: int,
+        data_saving_file: Path = None
     ):
         super().__init__()
         self.train_fnames, self.val_fnames = self.train_val_split(data_dir)
@@ -42,6 +45,12 @@ class GwakFileDataloader(pl.LightningDataModule):
         self.batch_size = batch_size
         self.batches_per_epoch = batches_per_epoch
         self.num_workers = num_workers
+        self.data_saving_file = data_saving_file
+        if self.data_saving_file is not None:
+            
+            Path(self.data_saving_file.parents[0]).mkdir(parents=True, exist_ok=True)
+            self.data_group = h5py.File(self.data_saving_file, "w")
+        
         self._logger = self.get_logger()
 
     def train_val_split(self, data_dir, val_split=0.2):
@@ -135,6 +144,17 @@ class GwakFileDataloader(pl.LightningDataModule):
             [batch] = batch
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.whiten(batch)
+            
+            if self.trainer.training and (self.data_saving_file is not None):
+                
+                step_name = f"Training/Step_{self.trainer.global_step:06d}_BK"
+                self.data_group.create_dataset(step_name, data = batch.cpu())
+                
+            if self.trainer.validating and (self.data_saving_file is not None):
+
+                step_name = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
+                self.data_group.create_dataset(step_name, data = batch.cpu())
+                
             return batch
 
     def generate_waveforms(self, batch_size):
@@ -163,6 +183,7 @@ class GwakBaseDataloader(pl.LightningDataModule):
         batch_size: int,
         batches_per_epoch: int,
         num_workers: int,
+        data_saving_file: Path = None
     ):
         super().__init__()
         self.train_fnames, self.val_fnames = self.train_val_split(data_dir)
@@ -174,6 +195,12 @@ class GwakBaseDataloader(pl.LightningDataModule):
         self.batch_size = batch_size
         self.batches_per_epoch = batches_per_epoch
         self.num_workers = num_workers
+        self.data_saving_file = data_saving_file
+        if self.data_saving_file is not None:
+            
+            Path(self.data_saving_file.parents[0]).mkdir(parents=True, exist_ok=True)
+            self.data_group = h5py.File(self.data_saving_file, "w")
+            
         self._logger = self.get_logger()
 
     def train_val_split(self, data_dir, val_split=0.2):
@@ -267,6 +294,17 @@ class GwakBaseDataloader(pl.LightningDataModule):
             [batch] = batch
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.whiten(batch)
+            
+            if self.trainer.training and (self.data_saving_file is not None):
+                
+                step_name = f"Training/Step_{self.trainer.global_step:06d}_BK"
+                self.data_group.create_dataset(step_name, data = batch.cpu())
+                
+            if self.trainer.validating and (self.data_saving_file is not None):
+
+                step_name = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
+                self.data_group.create_dataset(step_name, data = batch.cpu())
+                
             return batch
 
     def generate_waveforms(self, batch_size):
@@ -278,11 +316,17 @@ class GwakBaseDataloader(pl.LightningDataModule):
 
 class SignalDataloader(GwakBaseDataloader):
 
-    def __init__(self, prior: data.BasePrior, waveform: torch.nn.Module, *args, **kwargs):
+    def __init__(
+        self, 
+        prior: data.BasePrior, 
+        waveform: torch.nn.Module, 
+        *args, 
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.waveform = waveform
         self.prior = prior
-
+        # breakpoint()
     def generate_waveforms(self, batch_size):
 
         # get detector orientations
@@ -306,6 +350,9 @@ class SignalDataloader(GwakBaseDataloader):
           plus=plus.float()
         ).to('cuda')
 
+        logger = logging.getLogger(__name__)
+        # logger.info(f'waveforms shape {responses.shape}')
+
         return responses
 
     def inject(self, batch, waveforms):
@@ -314,6 +361,10 @@ class SignalDataloader(GwakBaseDataloader):
         split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
         splits = [batch.size(-1) - split_size, split_size]
         psd_data, batch = torch.split(batch, splits, dim=-1)
+
+        logger = logging.getLogger(__name__)
+        # logger.info(f'Batch shape {batch.shape}')
+
 
         # psd estimator
         # takes tensor of shape (batch_size, num_ifos, psd_length)
@@ -326,9 +377,21 @@ class SignalDataloader(GwakBaseDataloader):
         # calculate psds
         psds = spectral_density(psd_data.double())
 
-        # inject into data and whiten
-        injected = batch + waveforms
+        # Waveform padding
+        inj_len = waveforms.shape[-1]
+        window_len = splits[1]
+        half = int((window_len - inj_len)/2)
 
+        first_half, second_half = half, window_len - half - inj_len
+        
+        waveforms = F.pad(
+            input=waveforms, 
+            pad=(first_half, second_half), 
+            mode='constant', 
+            value=0
+        )
+        
+        injected = batch + waveforms * 100
 
         # create whitener
         whitener = Whiten(
@@ -355,5 +418,76 @@ class SignalDataloader(GwakBaseDataloader):
             waveforms = self.generate_waveforms(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.inject(batch, waveforms)
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            print(f"{batch.shape = }")
+            if self.trainer.training and (self.data_saving_file is not None):
+                
+                bk_step = f"Training/Step_{self.trainer.global_step:06d}_BK"
+                inj_step = f"Training/Step_{self.trainer.global_step:06d}_INJ"
+                
+                self.data_group.create_dataset(bk_step, data = batch.cpu())
+                self.data_group.create_dataset(inj_step, data = waveforms.cpu())
+                
+            if self.trainer.validating and (self.data_saving_file is not None):
 
+                bk_step = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
+                inj_step = f"Validation/Step_{self.trainer.global_validation_step:06d}_INJ"
+                
+                self.data_group.create_dataset(bk_step, data = batch.cpu())
+                self.data_group.create_dataset(inj_step, data = waveforms.cpu())          
+                
             return batch
+
+
+class BBHDataloader(SignalDataloader):
+    
+
+    def __init__(
+        self, 
+        ringdown_duration: float, 
+        *args, 
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.ringdown_size = int(ringdown_duration * self.sample_rate)
+
+    def generate_waveforms(self, batch_size):
+
+        # get detector orientations
+        ifos = ['H1', 'L1']
+        tensors, vertices = get_ifo_geometry(*ifos)
+
+        # sample from prior and generate waveforms
+        parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
+
+        cross, plus = self.waveform(**parameters)
+        cross, plus = torch.fft.irfft(cross), torch.fft.irfft(plus)
+        # Normalization
+        cross *= self.sample_rate
+        plus *= self.sample_rate
+
+        # roll the waveforms to join
+        # the coalescence and ringdown
+        cross = torch.roll(cross, -self.ringdown_size)
+        plus = torch.roll(plus, -self.ringdown_size)
+
+        # compute detector responses
+        responses = compute_observed_strain(
+            parameters['dec'],
+            parameters['psi'],
+            parameters['ra'],
+            tensors,
+            vertices,
+            self.sample_rate,
+            cross=cross.float(),
+            plus=plus.float()
+        ).to('cuda')
+
+        logger = logging.getLogger(__name__)
+        # logger.info(f'waveforms shape {responses.shape}')
+
+        return responses
