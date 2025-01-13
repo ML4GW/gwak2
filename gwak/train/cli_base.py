@@ -10,8 +10,8 @@ def cli_main(args=None):
     logger.info('Started')
 
     cli = LightningCLI(
-            save_config_kwargs={'overwrite': True},
-            args=args
+        save_config_kwargs={'overwrite': True},
+        args=args
         )
 
 

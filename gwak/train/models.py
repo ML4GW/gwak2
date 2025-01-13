@@ -32,6 +32,8 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
             metric=pl_module.metric
         )
         
+        # Modifiy these to read the last training/valdation data 
+        # to acess the input shape. 
         X = torch.randn(1, 200, 2)
         trace = torch.jit.trace(module.model.to("cpu"), X.to("cpu"))
 
@@ -182,8 +184,6 @@ class LargeLinear(GwakBaseModelClass):
         x = batch
         batch_size = x.shape[0]
 
-        # x = x.reshape(-1, self.num_timesteps * self.num_ifos)
-        # breakpoint()
         x = self.model(x)
         x = self.decoder(x)
         x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
@@ -211,7 +211,6 @@ class LargeLinear(GwakBaseModelClass):
 
         loss_fn = torch.nn.L1Loss()
 
-        # loss = loss_fn(batch, x)
         self.metric = loss_fn(batch, x)
         
         self.log(

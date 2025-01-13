@@ -11,7 +11,10 @@ from tqdm import tqdm
 import lal
 from astropy import units as u
 from ml4gw.distributions import Cosine, Sine
-from bilby.gw.conversion import transform_precessing_spins, bilby_to_lalsimulation_spins
+from ml4gw.waveforms.conversion import (
+    bilby_spins_to_lalsim, 
+    chirp_mass_and_mass_ratio_to_components
+)
 
 
 class Constant:
@@ -30,28 +33,6 @@ class Constant:
 
         return self.val
 
-def mass12_from_chirpq_prior(
-    Mc_prior,
-    q_prior,
-    batch_size: int = 64,
-    mass_limit: list[int, int] = [5, 100]
-):
-    
-    m1, m2 = np.zeros((batch_size,)), np.zeros((batch_size,))
-    
-    # Change this to hierarchical loop to boast the speed
-    for i in range(batch_size):
-        while(m1[i] < mass_limit[0] or m1[i] > mass_limit[1] or m2[i] < mass_limit[0] or m2[i] > mass_limit[1]):
-            Mc = Mc_prior.sample((1,))
-            q = q_prior.sample((1,))
-            
-            m1[i] = (Mc * (1.0 + q) ** 0.2 / q**0.6)[0]
-            m2[i] = (m1[i] * q)[0]
-            
-            # m2[i] = (Mc*(1+q)**(1/5)*q**(2/5))[0]
-            # m1[i] = (Mc*(1+q)**(1/5)*q**(-3/5))[0]
-    
-    return Mc, q, torch.Tensor(m1), torch.Tensor(m2)
 
 class BasePrior:
 
@@ -85,10 +66,7 @@ class SineGaussianHighFrequency(BasePrior):
             quality = Uniform(5, 75),
             frequency = Uniform(512, 1024),
             phase = Uniform(0, 2 * torch.pi),
-            eccentricity = Uniform(0, 0.01),
-            ra = Uniform(0, 2 * torch.pi),
-            dec = Cosine(),
-            psi = Uniform(0, 2 * torch.pi)
+            eccentricity = Uniform(0, 0.01)
         )
 
 
@@ -103,11 +81,9 @@ class SineGaussianLowFrequency(BasePrior):
             quality = Uniform(5, 75),
             frequency = Uniform(64, 512),
             phase = Uniform(0, 2 * torch.pi),
-            eccentricity = Uniform(0, 0.01),
-            ra = Uniform(0, 2 * torch.pi),
-            dec = Cosine(),
-            psi = Uniform(0, 2 * torch.pi)
+            eccentricity = Uniform(0, 0.01)
         )
+
 
 class LAL_BBHPrior(BasePrior):
     
@@ -120,11 +96,12 @@ class LAL_BBHPrior(BasePrior):
     ):
 
         self.priors = {}
-        self.wave_params = {}
+        self.bilby_priors = {}
+        self.spin_params = {}
         self.sampled_params = {}
         
         self.lal_keys = [
-            "incl", # Transformed inclination angle. (TensorType)
+            "inclination", # Transformed inclination angle. (TensorType)
             "s1x", # Spin component x of the first BH. (TensorType)
             "s1y", # Spin component y of the first BH. (TensorType)
             "s1z", # Spin component z of the first BH. (TensorType)
@@ -142,108 +119,80 @@ class LAL_BBHPrior(BasePrior):
         # Mass ratio m1/m2. (TensorType)
         self.priors['mass_ratio'] = Uniform(0.5, 0.99) 
         
-        # Luminosity distance in Mpc.(TensorType)
-        self.priors["dist_mpc"] = Uniform(50, 200) 
+        # # Luminosity distance in Mpc.(TensorType)
+        self.priors["distance"] = Uniform(50, 200) # dist_mpc
         
         # Coalescence time. (TensorType)
         self.priors["tc"] = Constant(0) 
         
-        # Sky location: Right ascension angle 
-        self.priors['ra'] = Uniform(0, 2*np.pi)
-        
-        # Sky location: Declination angle
-        self.priors['dec'] = Cosine(-np.pi/2, np.pi/2)
-        
         # Phase of the two polarlization
-        self.priors['psi'] = Uniform(0, 2*np.pi)
+        self.priors['phic'] = Uniform(0, 2 * torch.pi) # psi
         
         # ----- Spin & incl parameters (Bilby parameters) -----
-        # Inclination in bibly setup
-        self.priors['theta_jn'] = Sine() 
+        # Inclination in bilby setup
+        self.bilby_priors['theta_jn'] = Sine() 
         
         # Spin phase angle
-        self.priors['phi_jl'] = Uniform(0, 2 * np.pi) 
+        self.bilby_priors['phi_jl'] = Uniform(0, 2 * torch.pi) 
         
         # Primary object tilt
-        self.priors['tilt_1'] = Sine(0, np.pi) 
+        self.bilby_priors['tilt_1'] = Sine(0, torch.pi) 
         
         # Secondary object tilt
-        self.priors['tilt_2'] = Sine(0, np.pi) 
+        self.bilby_priors['tilt_2'] = Sine(0, torch.pi) 
         
         # Relative spin azimuthal angle
-        self.priors['phi_12'] = Uniform(0, 2 * np.pi) 
+        self.bilby_priors['phi_12'] = Uniform(0, 2 * torch.pi) 
         
         # Primary dimensionless spin magnitude
-        self.priors['a_1'] = Uniform(0, 0.5) 
+        self.bilby_priors['a_1'] = Uniform(0, 0.99) 
         
         # Secondary dimensionless spin magnitude
-        self.priors['a_2'] = Uniform(0, 0.5) 
+        self.bilby_priors['a_2'] = Uniform(0, 0.99) 
         
         # Reference frequency in Hz. *****(float)*****
         self.sampled_params["f_ref"] = Constant(f_ref).sample((1,)).numpy() 
         
         # Uniform(0, 2*np.pi) # Reference phase. (TensorType) #(Bilby) Orbital phase
-        self.priors['phiRef'] = Constant(0) 
+        self.bilby_priors['phiRef'] = Constant(0) 
 
         self.sample_keys = self.priors.keys()
         
-    def translator(self):
+    def sample(self, batch_size): # translator
         
         for key in self.priors.keys():
             
-            self.wave_params[key] = self.priors[key].sample((1,)) 
+            self.sampled_params[key] = self.priors[key].sample((batch_size,))
 
-        Mc = self.wave_params['chirp_mass']
-        q = self.wave_params['mass_ratio']
+        for key in self.bilby_priors.keys():
+            
+            self.spin_params[key] = self.bilby_priors[key].sample((batch_size,)) 
         
-        m1 = (Mc * (1.0 + q) ** 0.2 / q**0.6)[0]
-        m2 = (m1 * q)[0]
+        mass_1, mass_2 = chirp_mass_and_mass_ratio_to_components(
+            self.sampled_params['chirp_mass'],
+            self.sampled_params['mass_ratio']
+        )
         
-        # This function can't do batch translation
-        # would have to be torchify if it's draging down the speed
-        lal_spins = bilby_to_lalsimulation_spins(
-            theta_jn=self.wave_params['theta_jn'], 
-            phi_jl=self.wave_params['phi_jl'],
-            tilt_1=self.wave_params['tilt_1'],
-            tilt_2=self.wave_params['tilt_2'],
-            phi_12=self.wave_params['phi_12'],
-            a_1=self.wave_params['a_1'],
-            a_2=self.wave_params['a_2'],
-            mass_1=torch.multiply(m1, lal.MSUN_SI).numpy(),
-            mass_2=torch.multiply(m2, lal.MSUN_SI).numpy(),
-            reference_frequency=self.sampled_params['f_ref'],
-            phase=self.wave_params['phiRef'],
+        lal_spins = bilby_spins_to_lalsim(
+            theta_jn=self.spin_params['theta_jn'], 
+            phi_jl=self.spin_params['phi_jl'], 
+            tilt_1=self.spin_params['tilt_1'], 
+            tilt_2=self.spin_params['tilt_2'], 
+            phi_12=self.spin_params['phi_12'], 
+            a_1=self.spin_params['a_1'], 
+            a_2=self.spin_params['a_2'], 
+            mass_1=mass_1, 
+            mass_2=mass_2, 
+            f_ref=self.sampled_params['f_ref'][0], 
+            phi_ref=self.spin_params['phiRef'], 
         )
         
         for i, key in enumerate(self.lal_keys):
-            # breakpoint()
-            # self.wave_params[key] = self.to_tensor(lal_spins[i])
-            self.wave_params[key] = torch.Tensor(lal_spins[i])
+
+            self.sampled_params[key] = lal_spins[i]
         
-        return self.wave_params
-
-    def sample(self, batch_size):
-
-        for i, key in enumerate(self.sample_keys):
-            
-            self.sampled_params[key] = torch.zeros((batch_size,))
-            
-        for i, key in enumerate(self.lal_keys):
-            
-            self.sampled_params[key] = torch.zeros((batch_size,))
-
-        for i in tqdm(range(batch_size)):
-            data = self.translator()
-
-            for _, key in enumerate(self.sample_keys):
-
-                self.sampled_params[key][i] = data[key][0]
-                
-            for _, key in enumerate(self.lal_keys):
-
-                self.sampled_params[key][i] = data[key][0]
-
         return self.sampled_params
+
 
 class BBHPrior(BasePrior):
 
@@ -323,5 +272,4 @@ class BBHPrior(BasePrior):
             else:
                 logger.info(f'The shape of {k} is {self.sampled_params[k].shape}')
         
-        # breakpoint()
         return self.sampled_params

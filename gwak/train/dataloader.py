@@ -17,6 +17,9 @@ from ml4gw.transforms import SpectralDensity, Whiten
 from ml4gw.gw import compute_observed_strain, get_ifo_geometry
 from bilby.gw.conversion import bilby_to_lalsimulation_spins
 
+from torch.distributions.uniform import Uniform
+from ml4gw.distributions import Cosine
+
 from gwak import data
 
 
@@ -326,7 +329,12 @@ class SignalDataloader(GwakBaseDataloader):
         super().__init__(*args, **kwargs)
         self.waveform = waveform
         self.prior = prior
-        # breakpoint()
+        
+        # Projection parameters
+        self.ra_prior =  Uniform(0, 2*torch.pi)
+        self.dec_prior = Cosine(-np.pi/2, torch.pi/2)
+        self.phic_prior = Uniform(0, 2 * torch.pi)
+
     def generate_waveforms(self, batch_size):
 
         # get detector orientations
@@ -335,23 +343,25 @@ class SignalDataloader(GwakBaseDataloader):
 
         # sample from prior and generate waveforms
         parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
+        
+        ra = self.ra_prior.sample((batch_size,))
+        dec = self.dec_prior.sample((batch_size,))
+        phic = self.phic_prior.sample((batch_size,))
 
         cross, plus = self.waveform(**parameters)
 
         # compute detector responses
         responses = compute_observed_strain(
-          parameters['dec'],
-          parameters['psi'],
-          parameters['ra'],
-          tensors,
-          vertices,
-          self.sample_rate,
-          cross=cross.float(),
-          plus=plus.float()
+            dec, 
+            phic, 
+            ra, 
+            tensors, 
+            vertices, 
+            self.sample_rate, 
+            cross=cross.float(), 
+            plus=plus.float() 
         ).to('cuda')
 
-        logger = logging.getLogger(__name__)
-        # logger.info(f'waveforms shape {responses.shape}')
 
         return responses
 
@@ -361,10 +371,6 @@ class SignalDataloader(GwakBaseDataloader):
         split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
         splits = [batch.size(-1) - split_size, split_size]
         psd_data, batch = torch.split(batch, splits, dim=-1)
-
-        logger = logging.getLogger(__name__)
-        # logger.info(f'Batch shape {batch.shape}')
-
 
         # psd estimator
         # takes tensor of shape (batch_size, num_ifos, psd_length)
@@ -413,19 +419,16 @@ class SignalDataloader(GwakBaseDataloader):
         if self.trainer.training or self.trainer.validating or self.trainer.sanity_checking:
             # unpack the batch
             [batch] = batch
+            
             # generate waveforms
-
             waveforms = self.generate_waveforms(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.inject(batch, waveforms)
-            print(f"{batch.shape = }")
-            print(f"{batch.shape = }")
-            print(f"{batch.shape = }")
-            print(f"{batch.shape = }")
-            print(f"{batch.shape = }")
-            print(f"{batch.shape = }")
             if self.trainer.training and (self.data_saving_file is not None):
                 
+                # Set a warning that when the global_step exceed 1e6, 
+                # the data will have duplications. 
+                # Replace this with a data saving function. 
                 bk_step = f"Training/Step_{self.trainer.global_step:06d}_BK"
                 inj_step = f"Training/Step_{self.trainer.global_step:06d}_INJ"
                 
@@ -454,7 +457,7 @@ class BBHDataloader(SignalDataloader):
     ):
         super().__init__(*args, **kwargs)
         self.ringdown_size = int(ringdown_duration * self.sample_rate)
-
+        
     def generate_waveforms(self, batch_size):
 
         # get detector orientations
@@ -464,6 +467,9 @@ class BBHDataloader(SignalDataloader):
         # sample from prior and generate waveforms
         parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
 
+        ra = self.ra_prior.sample((batch_size,))
+        dec = self.dec_prior.sample((batch_size,))
+        
         cross, plus = self.waveform(**parameters)
         cross, plus = torch.fft.irfft(cross), torch.fft.irfft(plus)
         # Normalization
@@ -472,14 +478,16 @@ class BBHDataloader(SignalDataloader):
 
         # roll the waveforms to join
         # the coalescence and ringdown
-        cross = torch.roll(cross, -self.ringdown_size)
-        plus = torch.roll(plus, -self.ringdown_size)
+        cross = torch.roll(cross, -self.ringdown_size, dims=-1)
+        plus = torch.roll(plus, -self.ringdown_size, dims=-1)
 
         # compute detector responses
         responses = compute_observed_strain(
-            parameters['dec'],
-            parameters['psi'],
-            parameters['ra'],
+            # parameters['dec'],
+            dec,
+            parameters['phic'], # psi
+            # parameters['ra'],
+            ra,
             tensors,
             vertices,
             self.sample_rate,
@@ -487,7 +495,5 @@ class BBHDataloader(SignalDataloader):
             plus=plus.float()
         ).to('cuda')
 
-        logger = logging.getLogger(__name__)
-        # logger.info(f'waveforms shape {responses.shape}')
 
         return responses

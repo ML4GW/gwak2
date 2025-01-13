@@ -4,7 +4,7 @@ trainer:
   callbacks:
     - class_path: callback.ValidationCallback
   accelerator: gpu
-  devices: [1]
+  devices: [3]
   # accelerator: auto
   # devices: auto
   strategy: ddp_find_unused_parameters_true
@@ -23,7 +23,7 @@ model:
 data:
   class_path: dataloader.SignalDataloader
   init_args:
-    data_dir: /home/katya.govorkova/gwak2_background
+    data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
     sample_rate: 2048
     kernel_length: 0.09765625
     psd_length: 64
