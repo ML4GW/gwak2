@@ -6,12 +6,12 @@ from lightning.pytorch.cli import LightningCLI
 def cli_main(args=None):
 
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger()
+    logger = logging.getLogger(__name__)
     logger.info('Started')
 
     cli = LightningCLI(
-        save_config_kwargs={'overwrite': True},
-        args=args
+            save_config_kwargs={'overwrite': True},
+            args=args
         )
 
 

@@ -1,5 +1,3 @@
-import os
-
 signalclasses = ['bbh', 'sine_gaussian_lf', 'sine_gaussian_hf']
 backgroundclasses = ['background', 'glitches']
 dataclasses = signalclasses+backgroundclasses
@@ -28,4 +26,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype=os.getenv("MODE"))
+        expand(rules.train.log, datatype='sine_gaussian_lf')
