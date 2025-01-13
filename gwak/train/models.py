@@ -1,6 +1,8 @@
 import os
 import time
+import logging
 from typing import Sequence
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
@@ -25,78 +27,20 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
         torch.cuda.empty_cache()
 
         module = pl_module.__class__.load_from_checkpoint(
-            self.best_model_path, arch=pl_module.model, metric=pl_module.metric
+            self.best_model_path, 
+            arch=pl_module.model, 
+            metric=pl_module.metric
         )
+        
+        # Modifiy these to read the last training/valdation data 
+        # to acess the input shape. 
+        X = torch.randn(1, 200, 2)
+        trace = torch.jit.trace(module.model.to("cpu"), X.to("cpu"))
 
         save_dir = trainer.logger.log_dir or trainer.logger.save_dir
-        torch.save(module.model.state_dict(), os.path.join(save_dir, 'model.pt'))
 
-
-class LargeLinear(GwakBaseModelClass):
-
-    def __init__(self, num_ifos, num_timesteps, bottleneck):
-        super(LargeLinear, self).__init__()
-        self.num_timesteps = num_timesteps
-        self.num_ifos = num_ifos
-        self.Linear1 = nn.Linear(num_timesteps * 2, 2**7)
-        self.Linear2 = nn.Linear(2**7, 2**9)
-        self.Linear3 = nn.Linear(2**9, bottleneck)
-        self.Linear4 = nn.Linear(bottleneck, 2**9)
-        self.Linear5 = nn.Linear(2**9, 2**7)
-        self.Linear6 = nn.Linear(2**7, num_timesteps * 2)
-
-    def training_step(self, batch, batch_idx):
-
-        x = batch
-        batch_size = x.shape[0]
-
-        x = x.reshape(-1, self.num_timesteps * self.num_ifos)
-        x = F.relu(self.Linear1(x))
-        x = F.relu(self.Linear2(x))
-        x = F.relu(self.Linear3(x))
-        x = F.relu(self.Linear4(x))
-        x = F.tanh(self.Linear5(x))
-        x = (self.Linear6(x))
-        x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
-
-        loss_fn = torch.nn.L1Loss()
-
-        loss = loss_fn(batch, x)
-
-        self.log(
-            'train_loss',
-            loss,
-            sync_dist=True)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-
-        x = batch
-        batch_size = x.shape[0]
-
-        x = x.reshape(-1, self.num_timesteps * self.num_ifos)
-        x = F.relu(self.Linear1(x))
-        x = F.relu(self.Linear2(x))
-        x = F.relu(self.Linear3(x))
-        x = F.relu(self.Linear4(x))
-        x = F.tanh(self.Linear5(x))
-        x = (self.Linear6(x))
-        x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
-
-        loss_fn = torch.nn.L1Loss()
-
-        loss = loss_fn(batch, x)
-
-        self.log(
-            'val_loss',
-            loss,
-            on_epoch=True,
-            sync_dist=True
-            )
-
-    def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters())
-        return optimizer
+        with open(os.path.join(save_dir, "model_JIT.pt"), "wb") as f:
+            torch.jit.save(trace, f)
 
 
 class Encoder(nn.Module):
@@ -120,13 +64,21 @@ class Encoder(nn.Module):
 
         self.encoder_dense_scale = 20
         self.linear1 = nn.Linear(
-            in_features=2**8, out_features=self.encoder_dense_scale * 4)
+            in_features=2**8, 
+            out_features=self.encoder_dense_scale * 4
+        )
         self.linear2 = nn.Linear(
-            in_features=self.encoder_dense_scale * 4, out_features=self.encoder_dense_scale * 2)
+            in_features=self.encoder_dense_scale * 4, 
+            out_features=self.encoder_dense_scale * 2
+        )
         self.linear_passthrough = nn.Linear(
-            2 * seq_len, self.encoder_dense_scale * 2)
+            2 * seq_len, 
+            self.encoder_dense_scale * 2
+        )
         self.linear3 = nn.Linear(
-            in_features=self.encoder_dense_scale * 4, out_features=self.embedding_dim)
+            in_features=self.encoder_dense_scale * 4, 
+            out_features=self.embedding_dim
+        )
 
         self.linearH = nn.Linear(4 * seq_len, 2**7)
         self.linearL = nn.Linear(4 * seq_len, 2**7)
@@ -148,11 +100,10 @@ class Encoder(nn.Module):
         x = torch.cat([Hx, Lx], dim=1)
         x = F.tanh(self.linear1(x))
         x = F.tanh(self.linear2(x))
-        x = torch.cat([x, other_dat], axis=1)
+        x = torch.cat([x, other_dat], dim=1)
         x = F.tanh(self.linear3(x))
 
         return x.reshape((batch_size, self.embedding_dim))  # phil harris way
-
 
 class Decoder(nn.Module):
 
@@ -197,6 +148,100 @@ class Decoder(nn.Module):
 
         return x
 
+class LargeLinear(GwakBaseModelClass):
+
+    def __init__(
+            self, 
+            num_ifos=2, 
+            num_timesteps=200, 
+            bottleneck=8
+        ):
+        
+        super(LargeLinear, self).__init__()
+        self.num_timesteps = num_timesteps
+        self.num_ifos = num_ifos
+
+        self.model = nn.Sequential(OrderedDict([
+            ("Reshape_Layer", nn.Flatten(1)), # Consider use torch.view() instead 
+            ("E_Linear1", nn.Linear(num_timesteps * 2, 2**7)),
+            ("E_ReLU1", nn.ReLU()),
+            ("E_Linear2", nn.Linear(2**7, 2**9)),
+            ("E_ReLU2", nn.ReLU()),
+            ("E_Linear3", nn.Linear(2**9, bottleneck)),
+            ("E_ReLU3", nn.ReLU()),
+        ]))
+        
+        self.decoder = nn.Sequential(OrderedDict([
+            ("D_Linear1", nn.Linear(bottleneck, 2**9)),
+            ("D_ReLU1", nn.ReLU()),
+            ("D_Linear2", nn.Linear(2**9, 2**7)),
+            ("D_Tanh", nn.Tanh()),
+            ("D_Linear3", nn.Linear(2**7, num_timesteps * 2)),
+        ]))
+
+    def training_step(self, batch, batch_idx):
+
+        x = batch
+        batch_size = x.shape[0]
+
+        x = self.model(x)
+        x = self.decoder(x)
+        x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
+
+        loss_fn = torch.nn.L1Loss()
+        
+        loss = loss_fn(batch, x)
+        
+        self.log(
+            'train_loss',
+            loss,
+            on_epoch=True, # Newly added
+            sync_dist=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        
+        x = batch
+        batch_size = x.shape[0]
+
+        x = x.reshape(-1, self.num_timesteps * self.num_ifos)
+        x = self.model(x)
+        x = self.decoder(x)
+        x = x.reshape(batch_size, self.num_ifos, self.num_timesteps)
+
+        loss_fn = torch.nn.L1Loss()
+
+        self.metric = loss_fn(batch, x)
+        
+        self.log(
+            'val_loss',
+            self.metric,
+            on_epoch=True,
+            sync_dist=True
+            )
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters())
+        return optimizer
+    
+    def configure_callbacks(self) -> Sequence[pl.Callback]:
+        # checkpoint for saving best model
+        # that will be used for downstream export
+        # and inference tasks
+        # checkpoint for saving multiple best models
+        callbacks = []
+
+        # if using ray tune don't append lightning
+        # model checkpoint since we'll be using ray's
+        checkpoint = ModelCheckpoint(
+            monitor='val_loss',
+            save_last=True,
+            auto_insert_metric_name=False
+            )
+
+        callbacks.append(checkpoint)
+
+        return callbacks
 
 class Autoencoder(GwakBaseModelClass):
 
@@ -212,9 +257,15 @@ class Autoencoder(GwakBaseModelClass):
         self.num_ifos = num_ifos
         self.bottleneck = bottleneck
         self.model = Encoder(
-            seq_len=num_timesteps, n_features=num_ifos, embedding_dim=bottleneck)
+            seq_len=num_timesteps, 
+            n_features=num_ifos, 
+            embedding_dim=bottleneck
+        )
         self.decoder = Decoder(
-            seq_len=num_timesteps, n_features=num_ifos, input_dim=bottleneck)
+            seq_len=num_timesteps, 
+            n_features=num_ifos, 
+            input_dim=bottleneck
+        )
 
     def training_step(self, batch, batch_idx):
         x = batch
@@ -237,7 +288,8 @@ class Autoencoder(GwakBaseModelClass):
             )
 
         return self.metric
-
+    
+    @torch.no_grad()
     def validation_step(self, batch, batch_idx):
         x = batch
 

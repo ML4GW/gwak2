@@ -1,8 +1,10 @@
 # lightning.pytorch==2.3.2
 seed_everything: 0
 trainer:
+  callbacks:
+    - class_path: callback.ValidationCallback
   accelerator: gpu
-  devices: [1]
+  devices: [2]
   # accelerator: auto
   # devices: auto
   strategy: ddp_find_unused_parameters_true
@@ -21,12 +23,13 @@ model:
 data:
   class_path: dataloader.GlitchDataloader
   init_args:
-    data_dir: /home/ethan.marx/aframe/data/train/background
+    data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
     sample_rate: 2048
     kernel_length: 0.09765625
     psd_length: 64
     fduration: 1
     fftlength: 2
-    batch_size: 128
-    batches_per_epoch: 128
+    batch_size: 8
+    batches_per_epoch: 8
     num_workers: 5
+    data_saving_file: /home/hongyin.chen/Data/gwak/glitches.h5

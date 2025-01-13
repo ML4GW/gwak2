@@ -32,8 +32,8 @@ def cli_main(args=None):
     logger.info('Started')
 
     cli = GwakSignalCLI(
-            save_config_kwargs={'overwrite': True},
-            args=args
+        save_config_kwargs={'overwrite': True},
+        args=args
     )
 
 
