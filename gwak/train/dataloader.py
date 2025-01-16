@@ -27,7 +27,7 @@ class GwakFileDataloader(pl.LightningDataModule):
 
     def __init__(
         self,
-        data_dir: Path,
+        data_dir: data.Pathfinder,
         sample_rate: int,
         kernel_length: float, # how many data points
         psd_length: int, # for whitening
@@ -36,10 +36,10 @@ class GwakFileDataloader(pl.LightningDataModule):
         batch_size: int,
         batches_per_epoch: int,
         num_workers: int,
-        data_saving_file: Path = None
+        data_saving_file: data.Pathfinder = None
     ):
         super().__init__()
-        self.train_fnames, self.val_fnames = self.train_val_split(data_dir)
+        self.train_fnames, self.val_fnames = self.train_val_split(data_dir.get_path())
         self.sample_rate = sample_rate
         self.kernel_length = kernel_length
         self.psd_length = psd_length
@@ -48,10 +48,9 @@ class GwakFileDataloader(pl.LightningDataModule):
         self.batch_size = batch_size
         self.batches_per_epoch = batches_per_epoch
         self.num_workers = num_workers
-        self.data_saving_file = data_saving_file
-        if self.data_saving_file is not None:
-            
-            Path(self.data_saving_file.parents[0]).mkdir(parents=True, exist_ok=True)
+        self.data_saving_file = data_saving_file.get_path()
+        
+        if self.data_saving_file is not None: 
             self.data_group = h5py.File(self.data_saving_file, "w")
         
         self._logger = self.get_logger()
@@ -177,7 +176,7 @@ class GwakBaseDataloader(pl.LightningDataModule):
 
     def __init__(
         self,
-        data_dir: Path,
+        data_dir: data.Pathfinder,
         sample_rate: int,
         kernel_length: float, # how many data points
         psd_length: int, # for whitening
@@ -186,10 +185,10 @@ class GwakBaseDataloader(pl.LightningDataModule):
         batch_size: int,
         batches_per_epoch: int,
         num_workers: int,
-        data_saving_file: Path = None
+        data_saving_file: data.Pathfinder = None
     ):
         super().__init__()
-        self.train_fnames, self.val_fnames = self.train_val_split(data_dir)
+        self.train_fnames, self.val_fnames = self.train_val_split(data_dir.get_path())
         self.sample_rate = sample_rate
         self.kernel_length = kernel_length
         self.psd_length = psd_length
@@ -198,10 +197,9 @@ class GwakBaseDataloader(pl.LightningDataModule):
         self.batch_size = batch_size
         self.batches_per_epoch = batches_per_epoch
         self.num_workers = num_workers
-        self.data_saving_file = data_saving_file
-        if self.data_saving_file is not None:
-            
-            Path(self.data_saving_file.parents[0]).mkdir(parents=True, exist_ok=True)
+        self.data_saving_file = data_saving_file.get_path()
+        
+        if self.data_saving_file is not None: 
             self.data_group = h5py.File(self.data_saving_file, "w")
             
         self._logger = self.get_logger()

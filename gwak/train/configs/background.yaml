@@ -24,7 +24,11 @@ model:
 data:
   class_path: dataloader.GwakBaseDataloader
   init_args:
-    data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
+    data_dir: 
+      class_path: gwak.data.gwak_path.Pathfinder
+      init_args:
+        gwak_env: GWAK_DATA_DIR
+        suffix: gwak2_background
     sample_rate: 2048
     kernel_length: 0.09765625
     psd_length: 64
@@ -33,4 +37,9 @@ data:
     batch_size: 8
     batches_per_epoch: 8
     num_workers: 5
-    data_saving_file: /home/hongyin.chen/Data/gwak/background.h5
+    data_saving_file: 
+      class_path: gwak.data.gwak_path.Pathfinder
+      init_args: 
+        gwak_env: GWAK_DATA_DIR
+        suffix: gwak2_data
+        file_name: background.h5
