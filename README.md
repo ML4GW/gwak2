@@ -57,6 +57,13 @@ $ git submodule update --init --recursive
 $ conda env create -n gwak --file environment.yaml
 $ conda activate gwak
 ```
+- create environment variables to store or acess data or image file for `gwak`
+```
+echo "export GWAK_DATA_DIR=<your/own/path>" >> ~/.bash_profile
+echo "export GWAK_CONTAINER_ROOT=<your/own/path>" >> ~/.bash_profile
+echo "export GWAK_OUTPUT_DIR=<your/own/path>" >> ~/.bash_profile
+echo "export GWAK_TRITON_DIR=<your/own/path>" >> ~/.bash_profile
+```
 - install `gwak` project in the editing mode
 ```
 $ pip install -e .
@@ -74,15 +81,9 @@ $ snakemake -c1 train_all
 $ pip install -e .
 ```
 
-# Containerize
-Set the container path
+# Export and Infer
 
-```
-echo "export GWAK_CONTAINER_ROOT=<your/own/path>" >> ~/.bash_profile
-```
+- [`export`](./gwak/export/README.md) Follow this README.md to build export environment and container image. 
 
-To access container simply run 
 
-```
-apptainer shell $GWAK_CONTAINER_ROOT/project.sif
-```
+

@@ -37,7 +37,7 @@ def export(
     try:
         gwak = repo.models[f"gwak-{project}"]
     except KeyError:
-        gwak = repo.add(f"gwak-{project}", qv.Platform.TENSORRT)
+        gwak = repo.add(f"gwak-{project}", platform)
 
     if gwak_instances is not None:
         scale_model(gwak, gwak_instances)
@@ -61,16 +61,16 @@ def export(
         **kwargs,
     )
 
-    # Build Whiten model 
-    ensemble_name = "gwak-stream"
-    try:
-        # first see if we have an existing
-        # ensemble with the given name
-        ensemble = repo.models[ensemble_name]
-    except KeyError:
+    # # Build Whiten model 
+    # ensemble_name = "gwak-stream"
+    # try:
+    #     # first see if we have an existing
+    #     # ensemble with the given name
+    #     ensemble = repo.models[ensemble_name]
+    # except KeyError:
         
-        ensemble = repo.add(
-            ensemble_name, 
-            platform=qv.Platform.ENSEMBLE
-        )
+    #     ensemble = repo.add(
+    #         ensemble_name, 
+    #         platform=qv.Platform.ENSEMBLE
+    #     )
         

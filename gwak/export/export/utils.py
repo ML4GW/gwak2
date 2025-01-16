@@ -1,3 +1,5 @@
+import torch 
+from typing import Callable, Optional, Tuple
 
 from hermes.quiver.model import EnsembleModel, ExposedTensor
 
@@ -6,6 +8,8 @@ from hermes.quiver import Platform
 from hermes.quiver.streaming import utils as streaming_utils
 from hermes.quiver.model import EnsembleModel, ExposedTensor
 
+
+Tensor = torch.Tensor
 def scale_model(model, instances):
     """
     Scale the model to the number of instances per GPU desired
