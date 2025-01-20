@@ -23,7 +23,7 @@ model:
 data:
   class_path: dataloader.BBHDataloader
   init_args:
-    data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
+    data_dir: /home/katya.govorkova/gwak2_background
     sample_rate: 2048
     kernel_length: 0.09765625
     psd_length: 64
@@ -36,4 +36,4 @@ data:
     waveform:
       class_path: ml4gw.waveforms.IMRPhenomPv2
     ringdown_duration: 0.9
-    data_saving_file: /home/hongyin.chen/Data/gwak/bbh.h5
+    data_saving_file: /home/eric.moreno/Data/gwak/bbh.h5
