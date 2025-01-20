@@ -21,3 +21,4 @@ dependencies:
     - setGPU
     - jsonargparse==4.29
     - wandb==0.17.3
+    - scipy==1.14.1
