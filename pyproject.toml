@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "gwak"
+name = "gwak2"
 version = "0.1.0"
 description = ""
 authors = ["Katya Govorkova <katyag@mit.edu>"]
