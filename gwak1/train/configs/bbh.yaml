@@ -32,7 +32,7 @@ data:
     batch_size: 8
     batches_per_epoch: 8
     num_workers: 5
-    prior: gwak.data.prior.LAL_BBHPrior
+    prior: gwak1.data.prior.LAL_BBHPrior
     waveform:
       class_path: ml4gw.waveforms.IMRPhenomPv2
     ringdown_duration: 0.9
