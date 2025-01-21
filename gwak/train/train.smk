@@ -28,4 +28,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype=os.getenv("MODE"))
+        expand(rules.train.log, datatype='background')
