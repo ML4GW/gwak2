@@ -5,7 +5,7 @@ backgroundclasses = ['background', 'glitches']
 dataclasses = signalclasses+backgroundclasses
 
 wildcard_constraints:
-    dataclass = '|'.join([x for x in dataclasses])
+    datatype = '|'.join([x for x in dataclasses])
 
 CLI = {
     'background': 'train/cli_base.py',
