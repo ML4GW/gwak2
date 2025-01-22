@@ -33,4 +33,4 @@ data:
     batch_size: 8
     batches_per_epoch: 8
     num_workers: 5
-    data_saving_file: /home/katya.govorkova/gwak2/gwak1/output/background.h5
+    data_saving_file: output/background.h5

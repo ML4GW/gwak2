@@ -20,7 +20,7 @@ from bilby.gw.conversion import bilby_to_lalsimulation_spins
 from torch.distributions.uniform import Uniform
 from ml4gw.distributions import Cosine
 
-from gwak1 import data
+from gwak import data
 
 
 class GwakFileDataloader(pl.LightningDataModule):

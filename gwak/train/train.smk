@@ -21,14 +21,14 @@ rule train_gwak1:
     params:
         cli = lambda wildcards: CLI[wildcards.datatype]
     log:
-        artefact = directory('output/{datatype}/')
+        artefact = directory('output/gwak1/{datatype}/')
     shell:
         'python {params.cli} fit --config {input.config} \
             --trainer.logger.save_dir {log.artefact}'
 
 rule train_gwak1_all:
     input:
-        expand(rules.train.log, datatype='background')
+        expand(rules.train_gwak1.log, datatype='background')
 
 rule train:
     input:
