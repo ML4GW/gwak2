@@ -15,6 +15,21 @@ CLI = {
     'sine_gaussian_hf': 'train/cli_signal.py',
     }
 
+rule train_gwak1:
+    input:
+        config = 'train/configs/gwak1/{datatype}.yaml'
+    params:
+        cli = lambda wildcards: CLI[wildcards.datatype]
+    log:
+        artefact = directory('output/{datatype}/')
+    shell:
+        'python {params.cli} fit --config {input.config} \
+            --trainer.logger.save_dir {log.artefact}'
+
+rule train_gwak1_all:
+    input:
+        expand(rules.train.log, datatype='background')
+
 rule train:
     input:
         config = 'train/configs/{datatype}.yaml'
@@ -28,4 +43,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype='background')
+        expand(rules.train.log, datatype='bbh')
