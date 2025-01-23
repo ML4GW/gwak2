@@ -447,165 +447,68 @@ class SignalDataloader(GwakBaseDataloader):
                 
             return batch
 
-class SignalDataloaderAugmentation(GwakBaseDataloader):
+
+class AugmentationSignalDataloader(GwakBaseDataloader):
     def __init__(
-        self, 
-        prior: data.BasePrior, 
-        waveform: torch.nn.Module, 
-        *args, 
-        **kwargs
-    ):
+            self,
+            signal_class,
+            prior,
+            ra_prior=None,
+            dec_prior=None,
+            *args,
+            **kwargs
+
+        ):    
         super().__init__(*args, **kwargs)
-        self.waveform = waveform
+        self.signal_class = signal_class
         self.prior = prior
-        
-        # Projection parameters
+
         self.ra_prior =  Uniform(0, 2*torch.pi)
         self.dec_prior = Cosine(-np.pi/2, torch.pi/2)
         self.phic_prior = Uniform(0, 2 * torch.pi)
+
+        if ra_prior is not None:
+            self.ra_prior = ra_prior
+        if dec_prior is not None:
+            self.dec_prior = dec_prior
 
         self.sky_location_augmentation = True
         self.distance_augmentation = False
         self.tc_augmentation = False
 
-
     def generate_waveforms_augmented(self, batch_size):
-
-        # get detector orientations
-        ifos = ['H1', 'L1']
-        tensors, vertices = get_ifo_geometry(*ifos)
-
-        # sample from prior and generate waveforms
         parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
-
-        #FIRST "AUGMENTATION", i.e. no transformation
-        
         ra = self.ra_prior.sample((batch_size,))
         dec = self.dec_prior.sample((batch_size,))
-        
-        cross, plus = self.waveform(**parameters)
-        cross, plus = torch.fft.irfft(cross), torch.fft.irfft(plus)
-        # Normalization
-        cross *= self.sample_rate
-        plus *= self.sample_rate
 
-        # roll the waveforms to join
-        # the coalescence and ringdown
-        cross = torch.roll(cross, -self.ringdown_size, dims=-1)
-        plus = torch.roll(plus, -self.ringdown_size, dims=-1)
 
-        # compute detector responses
-        responses_aug0 = compute_observed_strain(
-            # parameters['dec'],
-            dec,
-            parameters['phic'], # psi
-            # parameters['ra'],
-            ra,
-            tensors,
-            vertices,
-            self.sample_rate,
-            cross=cross.float(),
-            plus=plus.float()
-        ).to('cuda')
+        aug0 = self.signal_class.generate_waveforms(self, batch_size, parameters = parameters,
+                                                    ra = ra, dec = dec)
 
-        # SECOND AUGMENTATION
         if self.sky_location_augmentation: #reroll
             ra = self.ra_prior.sample((batch_size,))
             dec = self.dec_prior.sample((batch_size,))
         
-        parameters_regenerated = self.prior.sample(batch_size)
         if self.distance_augmentation:
+            parameters_regenerated = self.prior.sample(batch_size)
             parameters['distance'] = parameters_regenerated['distance']
 
         if self.tc_augmentation:
             # prior sets everything to zero, so implement this later
             None 
-        
-        cross, plus = self.waveform(**parameters)
-        cross, plus = torch.fft.irfft(cross), torch.fft.irfft(plus)
-        # Normalization
-        cross *= self.sample_rate
-        plus *= self.sample_rate
 
-        # roll the waveforms to join
-        # the coalescence and ringdown
-        cross = torch.roll(cross, -self.ringdown_size, dims=-1)
-        plus = torch.roll(plus, -self.ringdown_size, dims=-1)
+        # and do it again
+        aug1 = self.signal_class.generate_waveforms(self, batch_size, parameters = parameters,
+                                                    ra = ra, dec = dec)
 
-        # compute detector responses
-        responses_aug1 = compute_observed_strain(
-            # parameters['dec'],
-            dec,
-            parameters['phic'], # psi
-            # parameters['ra'],
-            ra,
-            tensors,
-            vertices,
-            self.sample_rate,
-            cross=cross.float(),
-            plus=plus.float()
-        ).to('cuda')
+        return torch.stack([aug0, aug1])
 
-
-        return torch.stack([responses_aug0, responses_aug1])
-
-    def inject(self, batch, waveforms):
-        #print(553, waveforms.shape)
+    def inject_augmented(self, batch, waveforms):
         aug_0, aug_1 = waveforms
         
-        aug_0_injected = self.inject_individual(batch, aug_0)
-        aug_1_injected = self.inject_individual(batch, aug_1)
+        aug_0_injected = self.signal_class.inject(batch, aug_0)
+        aug_1_injected = self.signal_class.inject(batch, aug_1)
         return torch.stack([aug_0_injected, aug_1_injected])
-
-    def inject_individual(self, batch, waveforms):
-        #for augmentation in batch:
-
-        # split batch into psd data and data to be whitened
-        split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
-        splits = [batch.size(-1) - split_size, split_size]
-        psd_data, batch = torch.split(batch, splits, dim=-1)
-
-        # psd estimator
-        # takes tensor of shape (batch_size, num_ifos, psd_length)
-        spectral_density = SpectralDensity(
-            self.sample_rate,
-            self.fftlength,
-            average = 'median'
-        ).to('cuda')
-
-        # calculate psds
-        psds = spectral_density(psd_data.double())
-
-        # Waveform padding
-        inj_len = waveforms.shape[-1]
-        window_len = splits[1]
-        half = int((window_len - inj_len)/2)
-
-        first_half, second_half = half, window_len - half - inj_len
-        
-        waveforms = F.pad(
-            input=waveforms, 
-            pad=(first_half, second_half), 
-            mode='constant', 
-            value=0
-        )
-        
-        injected = batch + waveforms * 100
-
-        # create whitener
-        whitener = Whiten(
-            self.fduration,
-            self.sample_rate,
-            highpass = 30,
-        ).to('cuda')
-
-        whitened = whitener(injected.double(), psds.double())
-
-        # normalize the input data
-        stds = torch.std(whitened, dim=-1, keepdim=True)
-        whitened = whitened / stds
-
-        return whitened
 
     def on_after_batch_transfer(self, batch, dataloader_idx):
 
@@ -617,7 +520,7 @@ class SignalDataloaderAugmentation(GwakBaseDataloader):
             waveforms = self.generate_waveforms_augmented(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
             
-            batch = self.inject(batch, waveforms)
+            batch = self.inject_augmented(batch, waveforms)
             
             if self.trainer.training and (self.data_saving_file is not None):
                 
@@ -640,7 +543,8 @@ class SignalDataloaderAugmentation(GwakBaseDataloader):
                 
             return batch
 
-class BBHDataloader(SignalDataloaderAugmentation):
+
+class BBHDataloader(SignalDataloader):
     
     def __init__(
         self, 
@@ -651,25 +555,20 @@ class BBHDataloader(SignalDataloaderAugmentation):
         super().__init__(*args, **kwargs)
         self.ringdown_size = int(ringdown_duration * self.sample_rate)
         
-    def generate_waveforms(self, batch_size):
+    def generate_waveforms(self, batch_size, parameters=None, ra=None, dec=None):
 
         # get detector orientations
         ifos = ['H1', 'L1']
         tensors, vertices = get_ifo_geometry(*ifos)
 
-        # sample from prior and generate waveforms
-        parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
-        #print(469, parameters)
-        #print(470, parameters['ra'], parameters['dec'])
-        #'distance', 'tc', 
-        
-        ra = self.ra_prior.sample((batch_size,))
-        dec = self.dec_prior.sample((batch_size,))
+        if parameters is None:
+            # sample from prior and generate waveforms
+            parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
+        if ra is None:
+            ra = self.ra_prior.sample((batch_size,))
+        if dec is None:
+            dec = self.dec_prior.sample((batch_size,))
 
-        # as well as them here
-        #print(477, ra, dec)
-        #assert 0
-        
         cross, plus = self.waveform(**parameters)
         cross, plus = torch.fft.irfft(cross), torch.fft.irfft(plus)
         # Normalization
@@ -695,7 +594,5 @@ class BBHDataloader(SignalDataloaderAugmentation):
             plus=plus.float()
         ).to('cuda')
 
-        #print(498, "bbh generation")
-        #assert 0
         return responses
 
