@@ -84,6 +84,18 @@ class SineGaussianLowFrequency(BasePrior):
             eccentricity = Uniform(0, 0.01)
         )
 
+class SineGaussianBBC(BasePrior):
+
+    def __init__(self):
+    # this is a super wide range for all the signals with converted amplitude to hrss here: https://git.ligo.org/bursts/burst-pipeline-benchmark/-/wikis/o4b_1/Waveforms-O4b-1
+        super().__init__()
+        self.params = OrderedDict(
+            hrss = Uniform(2e-25, 5e-20), 
+            quality = Uniform(3, 700),
+            frequency = Uniform(14, 3067),
+            phase = Uniform(0, 2 * torch.pi),
+            eccentricity = Uniform(0, 0.01)
+        )
 
 class LAL_BBHPrior(BasePrior):
     
