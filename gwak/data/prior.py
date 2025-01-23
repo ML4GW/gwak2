@@ -63,7 +63,7 @@ class SineGaussianHighFrequency(BasePrior):
 
         self.params = OrderedDict(
             hrss = Uniform(1e-21, 2e-21),
-            quality = Uniform(5, 75),
+            quality = Uniform(25, 75),
             frequency = Uniform(512, 1024),
             phase = Uniform(0, 2 * torch.pi),
             eccentricity = Uniform(0, 0.01)
@@ -78,7 +78,7 @@ class SineGaussianLowFrequency(BasePrior):
         super().__init__()
         self.params = OrderedDict(
             hrss = Uniform(1e-21, 2e-21),
-            quality = Uniform(5, 75),
+            quality = Uniform(25, 75),
             frequency = Uniform(64, 512),
             phase = Uniform(0, 2 * torch.pi),
             eccentricity = Uniform(0, 0.01)

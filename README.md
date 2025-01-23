@@ -49,7 +49,7 @@ If you **do have** `Miniconda` already installed on your machine, follow those s
 - checkout this repo and clone submodules (such as `ml4gw`)
 ```
 $ git clone git@github.com:ML4GW/gwak2.git
-$ cd gwak2
+$ cd gwak
 $ git submodule update --init --recursive
 ```
 - create a new `Conda` environment
