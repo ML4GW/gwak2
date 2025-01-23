@@ -622,6 +622,7 @@ class S4Model(nn.Module):
 
 class ProjectionHeadModel(nn.Module):
     def __init__(self, d_input, d_output):
+        super().__init__()
         #copying the paper of having one-layer MLP
         self.d_input = d_input
         self.d_output = d_output
@@ -670,11 +671,17 @@ class Crayon(GwakBaseModelClass):
         return 1/(2*N) * ( -2 * torch.sum(numerator_k) + torch.sum(torch.log(denom_k))  )
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=config.learning_rate)
+        optimizer = optim.Adam(self.parameters())#, lr=config.learning_rate
         return optimizer
         
     def training_step(self, batch, batch_idx):
+        #print(678, batch.shape, batch[0].shape, batch[1].shape)
+        #assert 0
         aug_0, aug_1 = batch[0], batch[1]
+        #print(681, batch.shape, aug_0.shape, aug_1.shape)
+        
+        #JUST TO TEST
+        #aug_0, aug_1 = batch[:4], batch[4:]
         embd_0 = self.projection_head(self.model(aug_0))
         embd_1 = self.projection_head(self.model(aug_1))
 
@@ -690,13 +697,17 @@ class Crayon(GwakBaseModelClass):
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
         aug_0, aug_1 = batch[0], batch[1]
+        #JUST TO TEST
+        #aug_0, aug_1 = batch[:4], batch[4:]
+        #print(696, batch.shape, batch[0].shape, batch[1].shape)
+        #assert 0
         embd_0 = self.projection_head(self.model(aug_0))
         embd_1 = self.projection_head(self.model(aug_1))
 
         loss = self.simCLR(embd_0, embd_1)
 
         self.log(
-            'validation_loss',
+            'val_loss',
             loss,
             sync_dist=True)
 
