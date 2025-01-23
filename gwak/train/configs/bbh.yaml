@@ -20,7 +20,7 @@ model:
     num_ifos: 2
     num_timesteps: 200
 data:
-  class_path: dataloader.BBHDataloaderAugmentation
+  class_path: dataloader.BBHDataloader
   init_args:
     data_dir: /home/katya.govorkova/gwak2_background
     sample_rate: 2048

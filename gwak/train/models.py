@@ -675,32 +675,23 @@ class Crayon(GwakBaseModelClass):
         return optimizer
         
     def training_step(self, batch, batch_idx):
-        #print(678, batch.shape, batch[0].shape, batch[1].shape)
-        #assert 0
         aug_0, aug_1 = batch[0], batch[1]
-        #print(681, batch.shape, aug_0.shape, aug_1.shape)
-        
-        #JUST TO TEST
-        #aug_0, aug_1 = batch[:4], batch[4:]
         embd_0 = self.projection_head(self.model(aug_0))
         embd_1 = self.projection_head(self.model(aug_1))
 
-        loss = self.simCLR(embd_0, embd_1)
+        self.metric = self.simCLR(embd_0, embd_1)
+        #loss = self.simCLR(embd_0, embd_1)
 
         self.log(
             'train_loss',
-            loss,
+            self.metric,
             sync_dist=True)
 
-        return loss
+        return self.metric
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
         aug_0, aug_1 = batch[0], batch[1]
-        #JUST TO TEST
-        #aug_0, aug_1 = batch[:4], batch[4:]
-        #print(696, batch.shape, batch[0].shape, batch[1].shape)
-        #assert 0
         embd_0 = self.projection_head(self.model(aug_0))
         embd_1 = self.projection_head(self.model(aug_1))
 
