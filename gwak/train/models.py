@@ -771,9 +771,7 @@ class Tarantula(GwakBaseModelClass):
         num_timesteps: int = 200,
         d_output:int = 16,
         d_contrastive_space: int = 16,
-        temperature: float = 0.1,
-        train_recreation = False,
-        train_contrastive = True,
+        temperature: float = 0.1
         ):
 
         super().__init__()
@@ -784,20 +782,13 @@ class Tarantula(GwakBaseModelClass):
         self.d_contrastive_space = d_contrastive_space
 
         self.temperature = temperature
-        self.encoder = EncoderTransformer(num_timesteps = self.num_timesteps,
+        self.model = EncoderTransformer(num_timesteps = self.num_timesteps,
                                           num_features = self.num_ifos,
                                           latent_dim = self.d_output)
-        self.model = self.encoder
         
-        # self.decoder = DecoderTransformer(num_timesteps = self.num_timesteps,
-        #                                   num_features = self.num_ifos,
-        #                                   latent_dim = self.d_output)
         
         self.projection_head = ProjectionHeadModel(d_input = self.d_output,
                                                     d_output = self.d_contrastive_space)
-        
-        self.train_recreation = train_recreation
-        self.train_contrastive = train_contrastive
 
     def simCLR(self, z0, z1):
         N = len(z0)
@@ -815,17 +806,12 @@ class Tarantula(GwakBaseModelClass):
         
     def training_step(self, batch, batch_idx):
         aug_0, aug_1 = batch[0], batch[1]
-        z0 = self.encoder(aug_0)
-        z1 = self.encoder(aug_1)
+        z0 = self.model(aug_0)
+        z1 = self.model(aug_1)
         embd_0 = self.projection_head(z0)
         embd_1 = self.projection_head(z1)
 
-        self.metric = 0
-        if self.train_contrastive:
-            self.metric += self.simCLR(embd_0, embd_1)
-        if self.train_recreation:
-            recreated_0 = self.decoder(embd_0)
-            self.metric += self.recreation_loss(aug_0, recreated_0)
+        self.metric = self.simCLR(embd_0, embd_1)
 
 
         self.log(
@@ -838,17 +824,11 @@ class Tarantula(GwakBaseModelClass):
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
         aug_0, aug_1 = batch[0], batch[1]
-        z0 = self.encoder(aug_0)
-        z1 = self.encoder(aug_1)
+        z0 = self.model(aug_0)
+        z1 = self.model(aug_1)
         embd_0 = self.projection_head(z0)
         embd_1 = self.projection_head(z1)
-
-        loss = 0
-        if self.train_contrastive:
-            loss += self.simCLR(embd_0, embd_1)
-        if self.train_recreation:
-            recreated_0 = self.decoder(embd_0)
-            loss += self.recreation_loss(aug_0, recreated_0)
+        loss = self.simCLR(embd_0, embd_1)
 
         self.log(
             'val_loss',
