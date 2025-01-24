@@ -31,7 +31,6 @@ data:
     batch_size: 8
     batches_per_epoch: 8
     num_workers: 5
-
     prior: gwak.data.prior.LAL_BBHPrior
     signal_class:
       class_path: dataloader.BBHDataloader

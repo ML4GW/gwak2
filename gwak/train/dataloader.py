@@ -160,7 +160,7 @@ class GwakFileDataloader(pl.LightningDataModule):
 
             return batch
 
-    def generate_waveforms(self, batch_size):
+    def generate_waveforms(self, batch_size, parameters=None, ra=None, dec=None):
         pass
 
     def inject(self, batch, waveforms):
@@ -310,7 +310,7 @@ class GwakBaseDataloader(pl.LightningDataModule):
 
             return batch
 
-    def generate_waveforms(self, batch_size):
+    def generate_waveforms(self, batch_size, parameters=None, ra=None, dec=None):
         pass
 
     def inject(self, batch, waveforms):
@@ -335,7 +335,7 @@ class SignalDataloader(GwakBaseDataloader):
         self.dec_prior = Cosine(-np.pi/2, torch.pi/2)
         self.phic_prior = Uniform(0, 2 * torch.pi)
 
-    def generate_waveforms(self, batch_size):
+    def generate_waveforms(self, batch_size, parameters=None, ra=None, dec=None):
 
         # get detector orientations
         ifos = ['H1', 'L1']

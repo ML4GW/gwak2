@@ -1,6 +1,6 @@
 import os
 
-signalclasses = ['bbh', 'sine_gaussian_lf', 'sine_gaussian_hf']
+signalclasses = ['bbh', 'sine_gaussian', 'sine_gaussian_lf', 'sine_gaussian_hf']
 backgroundclasses = ['background', 'glitches']
 dataclasses = signalclasses+backgroundclasses
 
@@ -10,9 +10,10 @@ wildcard_constraints:
 CLI = {
     'background': 'train/cli_base.py',
     'glitches': 'train/cli_base.py',
+    'sine_gaussian_lf': 'train/cli_signal_gwak1.py',
+    'sine_gaussian_hf': 'train/cli_signal_gwak1.py',
     'bbh': 'train/cli_base.py',
-    'sine_gaussian_lf': 'train/cli_signal.py',
-    'sine_gaussian_hf': 'train/cli_signal.py',
+    'sine_gaussian': 'train/cli_signal.py',
     }
 
 rule train_gwak1:
@@ -43,4 +44,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype='bbh')
+        expand(rules.train.log, datatype='sine_gaussian')

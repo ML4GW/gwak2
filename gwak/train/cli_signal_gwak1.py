@@ -13,13 +13,13 @@ class GwakSignalCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
 
         parser.link_arguments(
-            'data.init_args.signal_class.init_args.sample_rate',
-            'data.init_args.signal_class.init_args.waveform.init_args.sample_rate',
+            'data.init_args.sample_rate',
+            'data.init_args.waveform.init_args.sample_rate',
             apply_on='parse'
         )
         parser.link_arguments(
-            ('data.init_args.signal_class.init_args.kernel_length', 'data.init_args.signal_class.init_args.fduration'),
-            'data.init_args.signal_class.init_args.waveform.init_args.duration',
+            ('data.init_args.kernel_length', 'data.init_args.fduration'),
+            'data.init_args.waveform.init_args.duration',
             compute_fn=sum_args,
             apply_on='parse'
         )
