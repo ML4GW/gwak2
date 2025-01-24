@@ -21,7 +21,7 @@ from torch.distributions.uniform import Uniform
 from ml4gw.distributions import Cosine
 
 from gwak import data
-
+from abc import ABC
 
 class GwakFileDataloader(pl.LightningDataModule):
 
@@ -50,10 +50,10 @@ class GwakFileDataloader(pl.LightningDataModule):
         self.num_workers = num_workers
         self.data_saving_file = data_saving_file
         if self.data_saving_file is not None:
-            
+
             Path(self.data_saving_file.parents[0]).mkdir(parents=True, exist_ok=True)
             self.data_group = h5py.File(self.data_saving_file, "w")
-        
+
         self._logger = self.get_logger()
 
     def train_val_split(self, data_dir, val_split=0.2):
@@ -147,17 +147,17 @@ class GwakFileDataloader(pl.LightningDataModule):
             [batch] = batch
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.whiten(batch)
-            
+
             if self.trainer.training and (self.data_saving_file is not None):
-                
+
                 step_name = f"Training/Step_{self.trainer.global_step:06d}_BK"
                 self.data_group.create_dataset(step_name, data = batch.cpu())
-                
+
             if self.trainer.validating and (self.data_saving_file is not None):
 
                 step_name = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
                 self.data_group.create_dataset(step_name, data = batch.cpu())
-                
+
             return batch
 
     def generate_waveforms(self, batch_size):
@@ -200,10 +200,10 @@ class GwakBaseDataloader(pl.LightningDataModule):
         self.num_workers = num_workers
         self.data_saving_file = data_saving_file
         if self.data_saving_file is not None:
-            
+
             Path(self.data_saving_file.parents[0]).mkdir(parents=True, exist_ok=True)
             self.data_group = h5py.File(self.data_saving_file, "w")
-            
+
         self._logger = self.get_logger()
 
     def train_val_split(self, data_dir, val_split=0.2):
@@ -297,17 +297,17 @@ class GwakBaseDataloader(pl.LightningDataModule):
             [batch] = batch
             # inject waveforms; maybe also whiten data preprocess etc..
             batch = self.whiten(batch)
-            
+
             if self.trainer.training and (self.data_saving_file is not None):
-                
+
                 step_name = f"Training/Step_{self.trainer.global_step:06d}_BK"
                 self.data_group.create_dataset(step_name, data = batch.cpu())
-                
+
             if self.trainer.validating and (self.data_saving_file is not None):
 
                 step_name = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
                 self.data_group.create_dataset(step_name, data = batch.cpu())
-                
+
             return batch
 
     def generate_waveforms(self, batch_size):
@@ -320,16 +320,16 @@ class GwakBaseDataloader(pl.LightningDataModule):
 class SignalDataloader(GwakBaseDataloader):
 
     def __init__(
-        self, 
-        prior: data.BasePrior, 
-        waveform: torch.nn.Module, 
-        *args, 
+        self,
+        prior: data.BasePrior,
+        waveform: torch.nn.Module,
+        *args,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.waveform = waveform
         self.prior = prior
-        
+
         # Projection parameters
         self.ra_prior =  Uniform(0, 2*torch.pi)
         self.dec_prior = Cosine(-np.pi/2, torch.pi/2)
@@ -343,7 +343,7 @@ class SignalDataloader(GwakBaseDataloader):
 
         # sample from prior and generate waveforms
         parameters = self.prior.sample(batch_size) # dict[str, torch.tensor]
-        
+
         ra = self.ra_prior.sample((batch_size,))
         dec = self.dec_prior.sample((batch_size,))
         phic = self.phic_prior.sample((batch_size,))
@@ -352,21 +352,21 @@ class SignalDataloader(GwakBaseDataloader):
 
         # compute detector responses
         responses = compute_observed_strain(
-            dec, 
-            phic, 
-            ra, 
-            tensors, 
-            vertices, 
-            self.sample_rate, 
-            cross=cross.float(), 
-            plus=plus.float() 
+            dec,
+            phic,
+            ra,
+            tensors,
+            vertices,
+            self.sample_rate,
+            cross=cross.float(),
+            plus=plus.float()
         ).to('cuda')
 
 
         return responses
 
     def inject(self, batch, waveforms):
-        
+
         # split batch into psd data and data to be whitened
         split_size = int((self.kernel_length + self.fduration) * self.sample_rate)
         splits = [batch.size(-1) - split_size, split_size]
@@ -389,14 +389,14 @@ class SignalDataloader(GwakBaseDataloader):
         half = int((window_len - inj_len)/2)
 
         first_half, second_half = half, window_len - half - inj_len
-        
+
         waveforms = F.pad(
-            input=waveforms, 
-            pad=(first_half, second_half), 
-            mode='constant', 
+            input=waveforms,
+            pad=(first_half, second_half),
+            mode='constant',
             value=0
         )
-        
+
         injected = batch + waveforms * 100
 
         # create whitener
@@ -419,32 +419,32 @@ class SignalDataloader(GwakBaseDataloader):
         if self.trainer.training or self.trainer.validating or self.trainer.sanity_checking:
             # unpack the batch
             [batch] = batch
-            
+
             # generate waveforms
             waveforms = self.generate_waveforms(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
-            
+
             batch = self.inject(batch, waveforms)
-            
+
             if self.trainer.training and (self.data_saving_file is not None):
-                
-                # Set a warning that when the global_step exceed 1e6, 
-                # the data will have duplications. 
-                # Replace this with a data saving function. 
+
+                # Set a warning that when the global_step exceed 1e6,
+                # the data will have duplications.
+                # Replace this with a data saving function.
                 bk_step = f"Training/Step_{self.trainer.global_step:06d}_BK"
                 inj_step = f"Training/Step_{self.trainer.global_step:06d}_INJ"
-                
+
                 self.data_group.create_dataset(bk_step, data = batch.cpu())
                 self.data_group.create_dataset(inj_step, data = waveforms.cpu())
-                
+
             if self.trainer.validating and (self.data_saving_file is not None):
 
                 bk_step = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
                 inj_step = f"Validation/Step_{self.trainer.global_validation_step:06d}_INJ"
-                
+
                 self.data_group.create_dataset(bk_step, data = batch.cpu())
-                self.data_group.create_dataset(inj_step, data = waveforms.cpu())          
-                
+                self.data_group.create_dataset(inj_step, data = waveforms.cpu())
+
             return batch
 
 
@@ -457,8 +457,7 @@ class AugmentationSignalDataloader(GwakBaseDataloader):
             dec_prior=None,
             *args,
             **kwargs
-
-        ):    
+        ):
         super().__init__(*args, **kwargs)
         self.signal_class = signal_class
         self.prior = prior
@@ -482,20 +481,20 @@ class AugmentationSignalDataloader(GwakBaseDataloader):
         dec = self.dec_prior.sample((batch_size,))
 
 
-        aug0 = self.signal_class.generate_waveforms(self, batch_size, parameters = parameters,
+        aug0 = self.signal_class.generate_waveforms(batch_size, parameters = parameters,
                                                     ra = ra, dec = dec)
 
         if self.sky_location_augmentation: #reroll
             ra = self.ra_prior.sample((batch_size,))
             dec = self.dec_prior.sample((batch_size,))
-        
+
         if self.distance_augmentation:
             parameters_regenerated = self.prior.sample(batch_size)
             parameters['distance'] = parameters_regenerated['distance']
 
         if self.tc_augmentation:
             # prior sets everything to zero, so implement this later
-            None 
+            None
 
         # and do it again
         aug1 = self.signal_class.generate_waveforms(self, batch_size, parameters = parameters,
@@ -505,7 +504,7 @@ class AugmentationSignalDataloader(GwakBaseDataloader):
 
     def inject_augmented(self, batch, waveforms):
         aug_0, aug_1 = waveforms
-        
+
         aug_0_injected = self.signal_class.inject(batch, aug_0)
         aug_1_injected = self.signal_class.inject(batch, aug_1)
         return torch.stack([aug_0_injected, aug_1_injected])
@@ -515,46 +514,46 @@ class AugmentationSignalDataloader(GwakBaseDataloader):
         if self.trainer.training or self.trainer.validating or self.trainer.sanity_checking:
             # unpack the batch
             [batch] = batch
-            
+
             # generate waveforms
             waveforms = self.generate_waveforms_augmented(batch.shape[0])
             # inject waveforms; maybe also whiten data preprocess etc..
-            
+
             batch = self.inject_augmented(batch, waveforms)
-            
+
             if self.trainer.training and (self.data_saving_file is not None):
-                
-                # Set a warning that when the global_step exceed 1e6, 
-                # the data will have duplications. 
-                # Replace this with a data saving function. 
+
+                # Set a warning that when the global_step exceed 1e6,
+                # the data will have duplications.
+                # Replace this with a data saving function.
                 bk_step = f"Training/Step_{self.trainer.global_step:06d}_BK"
                 inj_step = f"Training/Step_{self.trainer.global_step:06d}_INJ"
-                
+
                 self.data_group.create_dataset(bk_step, data = batch.cpu())
                 self.data_group.create_dataset(inj_step, data = waveforms.cpu())
-                
+
             if self.trainer.validating and (self.data_saving_file is not None):
 
                 bk_step = f"Validation/Step_{self.trainer.global_validation_step:06d}_BK"
                 inj_step = f"Validation/Step_{self.trainer.global_validation_step:06d}_INJ"
-                
+
                 self.data_group.create_dataset(bk_step, data = batch.cpu())
-                self.data_group.create_dataset(inj_step, data = waveforms.cpu())          
-                
+                self.data_group.create_dataset(inj_step, data = waveforms.cpu())
+
             return batch
 
 
 class BBHDataloader(SignalDataloader):
-    
+
     def __init__(
-        self, 
-        ringdown_duration: float, 
-        *args, 
+        self,
+        ringdown_duration: float,
+        *args,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.ringdown_size = int(ringdown_duration * self.sample_rate)
-        
+
     def generate_waveforms(self, batch_size, parameters=None, ra=None, dec=None):
 
         # get detector orientations
