@@ -108,12 +108,12 @@ def create_lcs(
 
     files = find_urls(
         site=ifo[0],
-        frametype=f"{ifo}_{frametype}",
+        frametype=f"{frametype}",
         gpsstart=start_time,
         gpsend=end_time,
         urltype=urltype,
     )
-    
+    # breakpoint()
     
     output_dir = output_dir / ifo
     output_dir.mkdir(parents=True, exist_ok=True)

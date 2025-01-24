@@ -74,7 +74,7 @@ def gwak_background(
                     frametype=f"{ifo}_{frametype}",
                     start_time=seg_start,
                     end_time=seg_end,
-                    output_dir=omi_paras["out_dir"] / f"Segs_{seg_num:05d}", 
+                    output_dir= Path(omi_paras["out_dir"]) / f"Segs_{seg_num:05d}", 
                     urltype="file"
                 )
 
@@ -82,7 +82,7 @@ def gwak_background(
                 ifos= ifos,
                 start_time=seg_start,
                 end_time=seg_end,
-                project_dir= omi_paras["out_dir"] / f"Segs_{seg_num:05d}",
+                project_dir= Path(omi_paras["out_dir"]) / f"Segs_{seg_num:05d}",
                 # INI
                 q_range= omi_paras["q_range"],
                 frequency_range= omi_paras["frequency_range"],
@@ -101,14 +101,14 @@ def gwak_background(
                 bash_files.append(bash_script)
 
 
-            with ThreadPoolExecutor(max_workers=8) as e: # 8 workers
+            # with ThreadPoolExecutor(max_workers=8) as e: # 8 workers
             
-                for bash_file in bash_files:
-                    e.submit(run_bash, bash_file)
+            #     for bash_file in bash_files:
+            #         e.submit(run_bash, bash_file)
 
-                # Generate a glitch_info.h5 file that stores omicron informations 
-                glitch_merger = glitch_merger(
-                    ifos=ifos,
-                    omicron_path=omi_paras["out_dir"],
-                    channels=channels
-                )
+            #     # Generate a glitch_info.h5 file that stores omicron informations 
+            #     glitch_merger = glitch_merger(
+            #         ifos=ifos,
+            #         omicron_path=omi_paras["out_dir"],
+            #         channels=channels
+            #     )
