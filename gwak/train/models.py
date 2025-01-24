@@ -723,3 +723,202 @@ class Crayon(GwakBaseModelClass):
 
         return callbacks
     
+class EncoderTransformer(nn.Module):
+    def __init__(self, num_timesteps, num_features, latent_dim):
+        super(EncoderTransformer, self).__init__()
+        self.num_timesteps = num_timesteps
+        self.num_features = num_features
+        self.latent_dim = latent_dim
+
+        dim_feedforward = 128
+        nhead=4
+        self.transformer1 = nn.TransformerEncoderLayer(d_model=num_features*2,  
+                                                       nhead=nhead, 
+                                                       dim_feedforward=dim_feedforward,
+                                                       batch_first=True)
+        self.layer1 = nn.Linear(num_features*2, num_features)
+        self.transformer2 = nn.TransformerEncoderLayer(d_model=num_features,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
+        self.layer2 = nn.Linear(num_features, num_features//2)
+        self.transformer3 = nn.TransformerEncoderLayer(d_model=num_features//2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
+        
+        self.layer3 = nn.Linear(num_timesteps*(num_features//2), latent_dim * 4)
+        self.layer4 = nn.Linear(latent_dim*4, latent_dim*4)
+        self.layer5 = nn.Linear(latent_dim*4, latent_dim)
+
+    def forward(self, x):
+        n_batches, n_ifos, num_timesteps, num_features = x.shape
+        assert n_ifos==2
+        x = x.swapaxes(1, 2)
+        x = x.reshape((n_batches, num_timesteps, num_features*2))
+
+        x = self.transformer1(x)
+        x = F.relu(self.layer1(x))
+
+        x = self.transformer2(x)
+        x = F.relu(self.layer2(x))
+        
+        x = self.transformer3(x)
+        x = x.reshape( (n_batches, self.num_timesteps * (self.num_features//2)))
+
+        x = F.relu(self.layer3(x))
+        x = F.relu(self.layer4(x))
+        x = self.layer5(x)
+
+        return x
+    
+class DecoderTransformer(nn.Module):
+    def __init__(self, num_timesteps, num_features, latent_dim):
+        super(DecoderTransformer, self).__init__()
+        self.num_timesteps = num_timesteps
+        self.num_features = num_features
+        self.latent_dim = latent_dim
+
+        dim_feedforward = 128
+        nhead = 4
+        self.transformer1 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True).to(device)
+        self.layer1 = nn.Linear(num_features, num_features*2)
+        self.transformer2 = nn.TransformerEncoderLayer(d_model=num_features,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True).to(device)
+        self.layer2 = nn.Linear(num_features//2, num_features)
+        self.transformer3 = nn.TransformerEncoderLayer(d_model=num_features//2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True).to(device)
+        
+        self.layer3 = nn.Linear(latent_dim * 4, num_timesteps*(num_features//2))
+        self.layer4 = nn.Linear(latent_dim*4, latent_dim*4)
+        self.layer5 = nn.Linear(latent_dim, latent_dim*4)
+
+    def forward(self, x):
+        n_batches,  latent_dim = x.shape
+        #assert n_ifos==2
+        x = F.relu(self.layer5(x))
+        x = F.relu(self.layer4(x))
+        x = F.relu(self.layer3(x))
+        x = x.reshape( (n_batches, self.num_timesteps,  (self.num_features//2)))
+        x = self.transformer3(x)
+        x = F.relu(self.layer2(x))
+        x = self.transformer2(x)
+        x = F.relu(self.layer1(x))
+        x = self.transformer1(x)
+        x = x.reshape((n_batches, self.num_timesteps, 2, self.num_features))
+
+        x = x.swapaxes(1, 2)
+        return x
+
+class Tarantula(GwakBaseModelClass):
+
+    def __init__(
+        self,
+        num_ifos: int = 2,
+        num_timesteps: int = 200,
+        d_output:int = 10,
+        d_contrastive_space: int = 20,
+        temperature: float = 0.1,
+        train_recreation = False,
+        train_contrastive = True,
+        ):
+
+        super().__init__()
+
+        self.num_ifos = num_ifos
+        self.num_timesteps = num_timesteps
+        self.d_output = d_output
+        self.d_contrastive_space = d_contrastive_space
+
+        self.temperature = temperature
+
+        self.model = S4Model(d_input=self.num_ifos,
+                    length=self.num_timesteps,
+                    d_output = self.d_output)
+
+        self.encoder = EncoderTransformer(num_timesteps = self.num_timesteps,
+                                          num_features = self.num_ifos,
+                                          latent_dim = self.d_output)
+        
+        self.decoder = DecoderTransformer(num_timesteps = self.num_timesteps,
+                                          num_features = self.num_ifos,
+                                          latent_dim = self.d_output)
+        
+        self.projection_head = ProjectionHeadModel(d_input = self.d_output,
+                                                    d_output = self.d_contrastive_space)
+        
+        self.train_recreation = train_recreation
+        self.train_contrastive = train_contrastive
+
+    def simCLR(self, z0, z1):
+        N = len(z0)
+        z = torch.stack((z0, z1), dim=1).reshape(-1, z0.shape[1]) #intertwine
+        z_norm = z / torch.norm(z, dim=1)[:, None]
+        Sij = z_norm @ torch.transpose(z_norm, 0, 1) / self.temperature
+        Sij_exp = torch.exp( Sij )
+        denom_k = torch.sum( Sij_exp, dim=1 ) - torch.diagonal(Sij_exp)
+        numerator_k = torch.diag(Sij, diagonal=-1)[::2]
+        return 1/(2*N) * ( -2 * torch.sum(numerator_k) + torch.sum(torch.log(denom_k))  )
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters())#, lr=config.learning_rate
+        return optimizer
+        
+    def training_step(self, batch, batch_idx):
+        aug_0, aug_1 = batch[0], batch[1]
+        z0 = self.encoder(aug_0)
+        z1 = self.encoder(aug_1)
+        embd_0 = self.projection_head(z0)
+        embd_1 = self.projection_head(z1)
+
+        self.metric = 0
+        if self.train_contrastive:
+            self.metric += self.simCLR(embd_0, embd_1)
+        if self.train_recreation:
+            recreated_0 = self.decoder(embd_0)
+            self.metric += self.recreation_loss(aug_0, recreated_0)
+        #loss = self.simCLR(embd_0, embd_1)
+
+
+        self.log(
+            'train_loss',
+            self.metric,
+            sync_dist=True)
+
+        return self.metric
+
+    @torch.no_grad
+    def validation_step(self, batch, batch_idx):
+        aug_0, aug_1 = batch[0], batch[1]
+        z0 = self.encoder(aug_0)
+        z1 = self.encoder(aug_1)
+        embd_0 = self.projection_head(z0)
+        embd_1 = self.projection_head(z1)
+
+        loss = 0
+        if self.train_contrastive:
+            loss += self.simCLR(embd_0, embd_1)
+        if self.train_recreation:
+            recreated_0 = self.decoder(embd_0)
+            loss += self.recreation_loss(aug_0, recreated_0)
+        #loss = self.simCLR(embd_0, embd_1)
+
+
+        self.log(
+            'val_loss',
+            loss,
+            sync_dist=True)
+
+        return loss
+
+    def configure_callbacks(self) -> Sequence[pl.Callback]:
+        # checkpoint for saving best model
+        # that will be used for downstream export
+        # and inference tasks
+        # checkpoint for saving multiple best models
+        callbacks = []
+
+        # if using ray tune don't append lightning
+        # model checkpoint since we'll be using ray's
+        checkpoint = ModelCheckpoint(
+            monitor='val_loss',
+            save_last=True,
+            auto_insert_metric_name=False
+            )
+
+        callbacks.append(checkpoint)
+
+        return callbacks
+    
