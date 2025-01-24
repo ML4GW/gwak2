@@ -497,7 +497,7 @@ class AugmentationSignalDataloader(GwakBaseDataloader):
             None
 
         # and do it again
-        aug1 = self.signal_class.generate_waveforms(self, batch_size, parameters = parameters,
+        aug1 = self.signal_class.generate_waveforms(batch_size, parameters = parameters,
                                                     ra = ra, dec = dec)
 
         return torch.stack([aug0, aug1])
