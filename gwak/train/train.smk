@@ -1,6 +1,6 @@
 import os
 
-signalclasses = ['bbh', 'sine_gaussian', 'sine_gaussian_lf', 'sine_gaussian_hf']
+signalclasses = ['bbh', 'sine_gaussian', 'sine_gaussian_lf', 'sine_gaussian_hf', 'kink', 'kinkkink', 'white_noise_burst', 'gaussian', 'cusp']
 backgroundclasses = ['background', 'glitches']
 dataclasses = signalclasses+backgroundclasses
 
@@ -14,6 +14,11 @@ CLI = {
     'sine_gaussian_hf': 'train/cli_signal_gwak1.py',
     'bbh': 'train/cli_base.py',
     'sine_gaussian': 'train/cli_signal.py',
+    'kink': 'train/cli_signal.py',
+    'kinkkink': 'train/cli_signal.py',
+    'white_noise_burst': 'train/cli_signal.py',
+    'gaussian': 'train/cli_signal.py',
+    'cusp': 'train/cli_signal.py',
     }
 
 rule train_gwak1:
@@ -44,4 +49,4 @@ rule train:
 
 rule train_all:
     input:
-        expand(rules.train.log, datatype='sine_gaussian')
+        expand(rules.train.log, datatype=['white_noise_burst', 'cusp', 'kink', 'kinkkink', 'gaussian'])

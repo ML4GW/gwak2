@@ -90,11 +90,64 @@ class SineGaussianBBC(BasePrior):
     # this is a super wide range for all the signals with converted amplitude to hrss here: https://git.ligo.org/bursts/burst-pipeline-benchmark/-/wikis/o4b_1/Waveforms-O4b-1
         super().__init__()
         self.params = OrderedDict(
-            hrss = Uniform(2e-25, 5e-20), 
+            hrss = Uniform(1e-24, 5e-20), 
             quality = Uniform(3, 700),
             frequency = Uniform(14, 3067),
-            phase = Uniform(0, 2 * torch.pi),
-            eccentricity = Uniform(0, 0.01)
+            phase = Uniform(0, torch.pi),
+            eccentricity = Uniform(0, 1)
+        )
+
+class GaussianBBC(BasePrior):
+
+    def __init__(self):
+    # this is a super wide range for all the signals with converted amplitude to hrss here: https://git.ligo.org/bursts/burst-pipeline-benchmark/-/wikis/o4b_1/Waveforms-O4b-1
+        super().__init__()
+        self.params = OrderedDict(
+            hrss = Uniform(1e-24, 1e-16), 
+            polarization = Uniform(0, torch.pi),
+            eccentricity = Uniform(0, 1)
+        )
+
+class WhiteNoiseBurstBBC(BasePrior):
+
+    def __init__(self):
+        super().__init__()
+        self.params = OrderedDict(
+            frequency = Uniform(55, 1520),
+            bandwidth = Uniform(32, 2048),
+            eccentricity = Uniform(0, 1),
+            phase = Uniform(0, torch.pi),
+            int_hdot_squared = Uniform(0, 1)
+        )
+
+class CuspBBC(BasePrior):
+
+    def __init__(self):
+        super().__init__()
+        self.params = OrderedDict(
+            waveform = 'cusp',
+            amplitude = Uniform(4.0e-22, 4.0e-21),
+            f_high = 1000
+        )
+
+class KinkBBC(BasePrior):
+
+    def __init__(self):
+        super().__init__()
+        self.params = OrderedDict(
+            waveform = 'kink',
+            amplitude = Uniform(1.4e-21, 1.4e-20),
+            f_high = 1000
+        )
+
+class KinkkinkBBC(BasePrior):
+
+    def __init__(self):
+        super().__init__()
+        self.params = OrderedDict(
+            waveform = 'kinkkink',
+            amplitude = Uniform(4.7e-21, 4.7e-20),
+            f_high = 1000
         )
 
 class LAL_BBHPrior(BasePrior):

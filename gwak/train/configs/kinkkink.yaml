@@ -31,7 +31,7 @@ data:
     batch_size: 8
     batches_per_epoch: 8
     num_workers: 5
-    prior: gwak.data.prior.SineGaussianBBC
+    prior: gwak.data.prior.KinkkinkBBC
     signal_class:
       class_path: dataloader.SignalDataloader
       init_args:
@@ -44,7 +44,7 @@ data:
         batch_size: 8
         batches_per_epoch: 8
         num_workers: 5
-        prior: gwak.data.prior.SineGaussianBBC
+        prior: gwak.data.prior.KinkkinkBBC
         waveform:
-          class_path: ml4gw.waveforms.SineGaussian
+          class_path: ml4gw.waveforms.GenerateString
         data_saving_file: output/sg.h5
