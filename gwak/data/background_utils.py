@@ -255,6 +255,40 @@ def omicron_bashes(
     return bash_files
 
 
+
+import os 
+from pathlib import Path
+
+
+
+class Pathfinder:
+
+    def __init__(
+            self,
+            gwak_env: str,  
+            suffix: str = None, 
+            file_name: str = None, 
+        ):
+
+        self.file_name = file_name
+
+        if suffix is not None:
+            self.path = Path(os.getenv(gwak_env)) / f"{suffix}"
+
+        else: 
+            self.path = Path(os.getenv(gwak_env))
+
+
+    def get_path(self):
+            
+        self.path.mkdir(parents=True, exist_ok=True)
+
+        if self.file_name is not None:
+
+            return self.path / self.file_name
+        
+        return self.path
+
 #########################
 ### Strain data utils ###
 #########################
