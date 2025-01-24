@@ -20,19 +20,22 @@ model:
     num_ifos: 2
     num_timesteps: 200
 data:
-  class_path: dataloader.BBHDataloader
+  class_path: dataloader.AugmentationSignalDataloader
   init_args:
-    data_dir: /home/katya.govorkova/gwak2_background
-    sample_rate: 2048
-    kernel_length: 0.09765625
-    psd_length: 64
-    fduration: 1
-    fftlength: 2
-    batch_size: 8
-    batches_per_epoch: 8
-    num_workers: 5
-    prior: gwak.data.prior.LAL_BBHPrior
-    waveform:
-      class_path: ml4gw.waveforms.IMRPhenomPv2
-    ringdown_duration: 0.9
-    data_saving_file: output/bbh.h5
+    signal_class: dataloader.BBHDataloader
+    init_args:
+      data_dir: /home/katya.govorkova/gwak2_background
+      sample_rate: 2048
+      kernel_length: 0.09765625
+      psd_length: 64
+      fduration: 1
+      fftlength: 2
+      batch_size: 8
+      batches_per_epoch: 8
+      num_workers: 5
+      prior: gwak.data.prior.LAL_BBHPrior
+      waveform:
+        class_path: ml4gw.waveforms.IMRPhenomPv2
+      ringdown_duration: 0.9
+      data_saving_file: output/bbh.h5
+  prior: gwak.data.prior.LAL_BBHPrior

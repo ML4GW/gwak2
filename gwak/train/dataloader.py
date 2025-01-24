@@ -451,8 +451,8 @@ class SignalDataloader(GwakBaseDataloader):
 class AugmentationSignalDataloader(GwakBaseDataloader):
     def __init__(
             self,
-            signal_class,
-            prior,
+            signal_class: SignalDataloader,
+            prior: data.BasePrior,
             ra_prior=None,
             dec_prior=None,
             *args,
@@ -465,7 +465,7 @@ class AugmentationSignalDataloader(GwakBaseDataloader):
 
         self.ra_prior =  Uniform(0, 2*torch.pi)
         self.dec_prior = Cosine(-np.pi/2, torch.pi/2)
-        self.phic_prior = Uniform(0, 2 * torch.pi)
+        #self.phic_prior = Uniform(0, 2 * torch.pi)
 
         if ra_prior is not None:
             self.ra_prior = ra_prior
