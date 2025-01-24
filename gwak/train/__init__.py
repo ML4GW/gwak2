@@ -1,1 +1,1 @@
-from .models import Autoencoder, Crayon
+from .models import Autoencoder, Crayon, Tarantula

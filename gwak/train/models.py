@@ -645,7 +645,7 @@ class Crayon(GwakBaseModelClass):
         ):
 
         super().__init__()
-
+        #print("ASDASDSADSADSADASDADSADSADSADSADSADSADSADSADSA")
         self.num_ifos = num_ifos
         self.num_timesteps = num_timesteps
         self.d_output = d_output
@@ -659,6 +659,7 @@ class Crayon(GwakBaseModelClass):
         
         self.projection_head = ProjectionHeadModel(d_input = self.d_output,
                                                     d_output = self.d_contrastive_space)
+        # if 0:
 
     def simCLR(self, z0, z1):
         N = len(z0)
@@ -724,33 +725,43 @@ class Crayon(GwakBaseModelClass):
         return callbacks
     
 class EncoderTransformer(nn.Module):
-    def __init__(self, num_timesteps, num_features, latent_dim):
-        super(EncoderTransformer, self).__init__()
+    def __init__(self, num_timesteps:int=200, num_features:int=2, latent_dim:int=16):
+        #super(EncoderTransformer, self).__init__()
+        super().__init__()
         self.num_timesteps = num_timesteps
         self.num_features = num_features
         self.latent_dim = latent_dim
 
         dim_feedforward = 128
-        nhead=4
-        self.transformer1 = nn.TransformerEncoderLayer(d_model=num_features*2,  
+        nhead=2
+        #assert 0
+        print(743, nhead, num_features*2)
+        self.transformer1 = nn.TransformerEncoderLayer(d_model=num_features,  
                                                        nhead=nhead, 
                                                        dim_feedforward=dim_feedforward,
                                                        batch_first=True)
-        self.layer1 = nn.Linear(num_features*2, num_features)
-        self.transformer2 = nn.TransformerEncoderLayer(d_model=num_features,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
-        self.layer2 = nn.Linear(num_features, num_features//2)
-        self.transformer3 = nn.TransformerEncoderLayer(d_model=num_features//2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
-        
-        self.layer3 = nn.Linear(num_timesteps*(num_features//2), latent_dim * 4)
+        print(748)
+        self.layer1 = nn.Linear(num_features, num_features*2)
+        print(750, num_features, nhead, dim_feedforward)
+        self.transformer2 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
+        print(751)
+        self.layer2 = nn.Linear(num_features*2, num_features*2)
+        self.transformer3 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
+        print(754)
+        self.layer3 = nn.Linear(num_timesteps*(num_features*2), latent_dim * 4)
         self.layer4 = nn.Linear(latent_dim*4, latent_dim*4)
         self.layer5 = nn.Linear(latent_dim*4, latent_dim)
 
     def forward(self, x):
-        n_batches, n_ifos, num_timesteps, num_features = x.shape
-        assert n_ifos==2
-        x = x.swapaxes(1, 2)
-        x = x.reshape((n_batches, num_timesteps, num_features*2))
-
+        num_batches, num_ifos, num_timesteps = x.shape
+        if 0:
+            n_batches, n_ifos, num_timesteps, num_features = x.shape
+            assert n_ifos==2
+            x = x.swapaxes(1, 2)
+            x = x.reshape((n_batches, num_timesteps, num_features*2))
+        #print(761, x.shape)
+        x = x.reshape(num_batches, num_timesteps, num_ifos)
+        #print(764000000, x.shape)
         x = self.transformer1(x)
         x = F.relu(self.layer1(x))
 
@@ -758,7 +769,8 @@ class EncoderTransformer(nn.Module):
         x = F.relu(self.layer2(x))
         
         x = self.transformer3(x)
-        x = x.reshape( (n_batches, self.num_timesteps * (self.num_features//2)))
+        #print(772000000, x.shape)
+        x = x.reshape( (num_batches, self.num_timesteps * (self.num_features*2)))
 
         x = F.relu(self.layer3(x))
         x = F.relu(self.layer4(x))
@@ -768,20 +780,20 @@ class EncoderTransformer(nn.Module):
     
 class DecoderTransformer(nn.Module):
     def __init__(self, num_timesteps, num_features, latent_dim):
-        super(DecoderTransformer, self).__init__()
+        super().__init__()
         self.num_timesteps = num_timesteps
         self.num_features = num_features
         self.latent_dim = latent_dim
 
         dim_feedforward = 128
         nhead = 4
-        self.transformer1 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True).to(device)
-        self.layer1 = nn.Linear(num_features, num_features*2)
-        self.transformer2 = nn.TransformerEncoderLayer(d_model=num_features,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True).to(device)
-        self.layer2 = nn.Linear(num_features//2, num_features)
-        self.transformer3 = nn.TransformerEncoderLayer(d_model=num_features//2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True).to(device)
+        self.transformer1 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
+        self.layer1 = nn.Linear(num_features*2, num_features*2)
+        self.transformer2 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
+        self.layer2 = nn.Linear(num_features*2, num_features*2)
+        self.transformer3 = nn.TransformerEncoderLayer(d_model=num_features*2,  nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
         
-        self.layer3 = nn.Linear(latent_dim * 4, num_timesteps*(num_features//2))
+        self.layer3 = nn.Linear(latent_dim * 4, num_timesteps*(num_features*2))
         self.layer4 = nn.Linear(latent_dim*4, latent_dim*4)
         self.layer5 = nn.Linear(latent_dim, latent_dim*4)
 
@@ -797,9 +809,9 @@ class DecoderTransformer(nn.Module):
         x = self.transformer2(x)
         x = F.relu(self.layer1(x))
         x = self.transformer1(x)
-        x = x.reshape((n_batches, self.num_timesteps, 2, self.num_features))
+        #x = x.reshape((n_batches, self.num_timesteps, 2, self.num_features))
 
-        x = x.swapaxes(1, 2)
+        #x = x.swapaxes(1, 2)
         return x
 
 class Tarantula(GwakBaseModelClass):
@@ -808,8 +820,8 @@ class Tarantula(GwakBaseModelClass):
         self,
         num_ifos: int = 2,
         num_timesteps: int = 200,
-        d_output:int = 10,
-        d_contrastive_space: int = 20,
+        d_output:int = 16,
+        d_contrastive_space: int = 16,
         temperature: float = 0.1,
         train_recreation = False,
         train_contrastive = True,
@@ -823,14 +835,10 @@ class Tarantula(GwakBaseModelClass):
         self.d_contrastive_space = d_contrastive_space
 
         self.temperature = temperature
-
-        self.model = S4Model(d_input=self.num_ifos,
-                    length=self.num_timesteps,
-                    d_output = self.d_output)
-
         self.encoder = EncoderTransformer(num_timesteps = self.num_timesteps,
                                           num_features = self.num_ifos,
                                           latent_dim = self.d_output)
+        self.model = self.encoder
         
         self.decoder = DecoderTransformer(num_timesteps = self.num_timesteps,
                                           num_features = self.num_ifos,
@@ -894,7 +902,6 @@ class Tarantula(GwakBaseModelClass):
             recreated_0 = self.decoder(embd_0)
             loss += self.recreation_loss(aug_0, recreated_0)
         #loss = self.simCLR(embd_0, embd_1)
-
 
         self.log(
             'val_loss',
