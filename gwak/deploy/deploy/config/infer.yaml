@@ -1,0 +1,7 @@
+model_repo_dir: /home/hongyin.chen/Xperimental/GWAK/export_repos
+image: hermes/tritonserver:23.01
+log_file: Path("/home/hongyin.chen/Xperimental/GWAK/export_log/log.log
+test_data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
+infer_file: /home/hongyin.chen/Xperimental/GWAK/infer/result.h5
+project: background
+batch_size: 1
