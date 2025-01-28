@@ -30,7 +30,7 @@ def infer(
     ip = get_ip_address()
     
     address=f"{ip}:8001"
-    model_name = f"gwak-{project}"
+    # model_name = f"gwak-{project}"
     model_name = f"gwak-{project}-streamer"
 
     serve_context = serve(

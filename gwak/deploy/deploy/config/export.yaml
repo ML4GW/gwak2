@@ -7,8 +7,8 @@ batch_size: 16
 kernel_size: 200
 num_ifos: 2
 gwak_instances: 6
-# platform: TENSORRT
-platform: TORCHSCRIPT
+platform: TENSORRT
+# platform: TORCHSCRIPT
 
 psd_length: 64
 kernel_length: 0.09765625

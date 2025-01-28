@@ -99,12 +99,12 @@ def export(
 
     else:
         # if there does already exist an ensemble by
-        # the given name, make sure it has aframe
+        # the given name, make sure it has gwak
         # and the snapshotter as a part of its models
         if gwak not in ensemble.models:
             raise ValueError(
                 "Ensemble model '{}' already in repository "
-                "but doesn't include model 'aframe'".format(ensemble_name)
+                "but doesn't include model 'gwak'".format(ensemble_name)
             )
         # TODO: checks for snapshotter and preprocessor
 
