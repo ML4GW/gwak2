@@ -13,6 +13,8 @@ from libs.infer_blocks import get_ip_address, infer_process
 
 
 def infer(
+    num_ifos: int,
+    kernel_size: int,
     model_repo_dir: Path,
     image: Path,
     log_file: Path,
@@ -29,6 +31,7 @@ def infer(
     
     address=f"{ip}:8001"
     model_name = f"gwak-{project}"
+    model_name = f"gwak-{project}-streamer"
 
     serve_context = serve(
         model_repo_dir, 
@@ -45,7 +48,7 @@ def infer(
         client = InferenceClient(address, model_name)
 
         # This part would have to replace with the Timeslide Generator
-        batcher = np.random.normal(0, 1, (30, 200, 2))
+        batcher = np.random.normal(0, 1, (30, kernel_size, num_ifos))
         batcher = batcher.astype("float32")
         batcher = batcher.reshape((-1, batch_size, 200, 2))
         

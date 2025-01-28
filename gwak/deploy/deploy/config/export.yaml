@@ -1,9 +1,19 @@
 project: background
-output_dir: /home/hongyin.chen/anti-gravity/gwak/gwak/output/gwak1
-triton_dir: /home/hongyin.chen/Xperimental/GWAK/export_repos
+model_dir: /home/hongyin.chen/anti-gravity/gwak/gwak/output/gwak1
+triton_dir: /home/hongyin.chen/Xperimental/GWAK/export_repos_v2
 clean: True
-batch_size: 1
+# version: 1
+batch_size: 16
 kernel_size: 200
 num_ifos: 2
-gwak_instances: 1
-platform: TENSORRT #TORCHSCRIPT
+gwak_instances: 6
+# platform: TENSORRT
+platform: TORCHSCRIPT
+
+psd_length: 64
+kernel_length: 0.09765625
+fduration: 1
+fftlength: 2
+sample_rate: 2048
+preproc_instances: 1
+inference_sampling_rate: 16
