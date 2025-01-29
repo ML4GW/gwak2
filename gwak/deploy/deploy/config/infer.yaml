@@ -2,8 +2,8 @@ num_ifos: 2
 kernel_size: 200
 model_repo_dir: /home/hongyin.chen/Xperimental/GWAK/export_repos_v2
 image: hermes/tritonserver:23.01
-log_file: Path("/home/hongyin.chen/Xperimental/GWAK/export_log/log.log
+log_file: /home/hongyin.chen/Xperimental/GWAK/export_log/log.log
 test_data_dir: /home/hongyin.chen/Data/GWAK_data/gwak2_background
 infer_file: /home/hongyin.chen/Xperimental/GWAK/infer/result.h5
-project: background
-batch_size: 1
+project: white_noise_burst
+batch_size: 32

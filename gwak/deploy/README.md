@@ -6,6 +6,8 @@ The deploy application provides two major utilities:
 # Build enviroment #
 
 ```
+pip install snakemake==7.32.4
+pip install --upgrade --force-reinstall "pulp<2.7"
 cd gwak/gwak/deploy
 poetry install
 ```

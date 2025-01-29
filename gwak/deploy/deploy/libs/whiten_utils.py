@@ -24,9 +24,8 @@ class BackgroundSnapshotter(torch.nn.Module):
         self.state_size = int(state_length * sample_rate)
 
     def forward(self, update: Tensor, snapshot: Tensor) -> Tuple[Tensor, ...]:
-        
-        x = torch.cat([snapshot, update], axis=-1) # num_info at axis=-1
-        snapshot = x[:, -self.state_size :, :]
+        x = torch.cat([snapshot, update], axis=-1)
+        snapshot = x[:, :, -self.state_size :]
         return x, snapshot
 
 
@@ -154,14 +153,14 @@ class BatchWhitener(torch.nn.Module):
 
         x, psd = self.psd_estimator(x)
         whitened = self.whitener(x.double(), psd)
-
         # unfold x and then put it into the expected shape.
         # Note that if x has both signal and background
         # batch elements, they will be interleaved along
         # the batch dimension after unfolding
-        x = unfold_windows(whitened, self.kernel_size, self.stride_size)
-        x = x.reshape(-1, self.kernel_size, num_channels)
-        whitened = whitened.transpose(1, 2)
+        x = unfold_windows(whitened, self.kernel_size, self.stride_size) # (batch, num_ifo, kernel_size)
+        x = torch.randn(32, 2, 200)
+        # x = x.reshape(-1, self.kernel_size, num_channels) # Apply this for gwak_1
+        # whitened = whitened.transpose(1, 2) # Apply this for gwak_1
         if self.augmentor is not None:
             x = self.augmentor(x)
         if self.return_whitened:

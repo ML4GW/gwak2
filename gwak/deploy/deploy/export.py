@@ -1,9 +1,12 @@
 import torch
+
 from pathlib import Path
+from typing import Callable, Optional
 
 import hermes.quiver as qv
 
 from deploy.libs import scale_model, add_streaming_input_preprocessor
+
 
 def export(
     project: Path,
@@ -22,6 +25,7 @@ def export(
     inference_sampling_rate: int,
     sample_rate: int,
     preproc_instances: int,
+    # highpass: Optional[float] = None,
     # streams_per_gpu: int,
     platform: qv.Platform = qv.Platform.ONNX,
     **kwargs,
@@ -33,7 +37,7 @@ def export(
         graph = torch.jit.load(f)
 
     graph.eval()
-
+          
     triton_dir.mkdir(parents=True, exist_ok=True)
     repo = qv.ModelRepository(triton_dir, clean=clean)
 
@@ -45,8 +49,8 @@ def export(
     if gwak_instances is not None:
         scale_model(gwak, gwak_instances)
 
-    input_shape = (batch_size, kernel_size, num_ifos)
-
+    # input_shape = (batch_size, kernel_size, num_ifos) # Apply this for gwak_1
+    input_shape = (batch_size, num_ifos, kernel_size) 
     kwargs = {}
     if platform == qv.Platform.ONNX:
         kwargs["opset_version"] = 13
@@ -58,15 +62,19 @@ def export(
         kwargs["use_fp16"] = False
 
     gwak.export_version(
-        graph, 
-        # version=version,
-        input_shapes={"whitened": input_shape}, 
-        output_names=["discriminator"],
-        # input_shapes={"INPUT__0": input_shape}, # TORCHSCRIPT format
-        # output_names=["OUTPUT__0"],
+        graph,
+        # input_shapes={"whitened": input_shape}, 
+        # output_names=["discriminator"],
+        input_shapes={"INPUT__0": input_shape}, 
+        output_names=["OUTPUT__0"],
         **kwargs,
     )
-
+    print("A bunch of things")
+    print("A bunch of things")
+    print("A bunch of things")
+    print("A bunch of things")
+    print("A bunch of things")
+    # breakpoint()
     ensemble_name = f"gwak-{project}-streamer"
 
     try:
@@ -79,7 +87,7 @@ def export(
 
         whitened = add_streaming_input_preprocessor(
             ensemble,
-            gwak.inputs["whitened"],
+            gwak.inputs["INPUT__0"],
             psd_length=psd_length,
             sample_rate=sample_rate,
             kernel_length=kernel_length,
@@ -87,14 +95,15 @@ def export(
             fduration=fduration,
             fftlength=fftlength,
             preproc_instances=preproc_instances,
+            # highpass=highpass,
             # streams_per_gpu=streams_per_gpu,
         )
 
-        ensemble.pipe(whitened, gwak.inputs["whitened"])
+        ensemble.pipe(whitened, gwak.inputs["INPUT__0"])
 
         # export the ensemble model, which basically amounts
         # to writing its config and creating an empty version entry
-        ensemble.add_output(gwak.outputs["discriminator"])
+        ensemble.add_output(gwak.outputs["OUTPUT__0"])
         ensemble.export_version(None)
 
     else:

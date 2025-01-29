@@ -68,6 +68,7 @@ def add_streaming_input_preprocessor(
     )
     ensemble.add_input(streaming_model.inputs["stream"])
 
+    # return streaming_model.outputs["strain"]
     preprocessor = BatchWhitener(
         kernel_length=kernel_length,
         sample_rate=sample_rate,
