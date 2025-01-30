@@ -1,13 +1,13 @@
-from export.main import export
+from deploy.infer import infer
 
 from jsonargparse import ArgumentParser, ActionConfigFile
 
 
 def build_parser():
     
-    parser = ArgumentParser(env_prefix="GWAK", default_env=True)
+    parser = ArgumentParser()
     parser.add_argument("--config", action=ActionConfigFile)
-    parser.add_function_arguments(export)
+    parser.add_function_arguments(infer)
     
     return parser
 
@@ -19,7 +19,7 @@ def main(args=None):
 
     for key, item in args.items():
         print(key, item)
-    export(**args)
+    infer(**args)
     
     
 if __name__ == "__main__":
