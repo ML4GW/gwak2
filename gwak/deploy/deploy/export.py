@@ -11,7 +11,7 @@ from deploy.libs import scale_model, add_streaming_input_preprocessor
 def export(
     project: Path,
     model_dir: Path,
-    triton_dir: Path,
+    output_dir: Path,
     clean: bool,
     batch_size: int, 
     kernel_size: int, 
@@ -32,14 +32,14 @@ def export(
 ):
     
     weights = model_dir / project / "model_JIT.pt"
-    
+    output_dir = output_dir / project
+
     with open(weights, "rb") as f:
         graph = torch.jit.load(f)
 
     graph.eval()
-          
-    triton_dir.mkdir(parents=True, exist_ok=True)
-    repo = qv.ModelRepository(triton_dir, clean=clean)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    repo = qv.ModelRepository(output_dir, clean=clean)
 
     try:
         gwak = repo.models[f"gwak-{project}"]
@@ -63,18 +63,11 @@ def export(
 
     gwak.export_version(
         graph,
-        # input_shapes={"whitened": input_shape}, 
-        # output_names=["discriminator"],
         input_shapes={"INPUT__0": input_shape}, 
         output_names=["OUTPUT__0"],
         **kwargs,
     )
-    print("A bunch of things")
-    print("A bunch of things")
-    print("A bunch of things")
-    print("A bunch of things")
-    print("A bunch of things")
-    # breakpoint()
+
     ensemble_name = f"gwak-{project}-streamer"
 
     try:
@@ -95,8 +88,6 @@ def export(
             fduration=fduration,
             fftlength=fftlength,
             preproc_instances=preproc_instances,
-            # highpass=highpass,
-            # streams_per_gpu=streams_per_gpu,
         )
 
         ensemble.pipe(whitened, gwak.inputs["INPUT__0"])

@@ -150,7 +150,6 @@ class BatchWhitener(torch.nn.Module):
                 "Expected input to be either 2 or 3 dimensional, "
                 "but found shape {}".format(x.shape)
             )
-
         x, psd = self.psd_estimator(x)
         whitened = self.whitener(x.double(), psd)
         # unfold x and then put it into the expected shape.
@@ -158,7 +157,7 @@ class BatchWhitener(torch.nn.Module):
         # batch elements, they will be interleaved along
         # the batch dimension after unfolding
         x = unfold_windows(whitened, self.kernel_size, self.stride_size) # (batch, num_ifo, kernel_size)
-        x = torch.randn(32, 2, 200)
+        x = x.reshape(-1, num_channels, self.kernel_size) # Apply this for gwak_1
         # x = x.reshape(-1, self.kernel_size, num_channels) # Apply this for gwak_1
         # whitened = whitened.transpose(1, 2) # Apply this for gwak_1
         if self.augmentor is not None:

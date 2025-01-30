@@ -1,22 +1,23 @@
-deployclasses = ['export', 'infer']  # List of deployment types
+models = ['white_noise_burst', 'gaussian'] 
 
 wildcard_constraints:
-    deploytype = '|'.join(deployclasses)
+    deploymodels = '|'.join(models)
 
 CLI = {
-    'export': 'deploy/deploy/cli_export.py',
-    'infer': 'deploy/deploy/cli_infer.py'
+    'white_noise_burst': 'white_noise_burst',
+    'gaussian': 'deploy/deploy/cli_infer.py'
 }
 
-rule deploy: 
+rule export: 
     input:
-        config = 'deploy/deploy/config/{deploytype}.yaml'
+        config = 'deploy/deploy/config/export.yaml'
     params:
-        cli = lambda wildcards: CLI[wildcards.deploytype]
+        cli = lambda wildcards: CLI[wildcards.deploymodels]
     output:
-        artefact = directory('/home/hongyin.chen/anti-gravity/gwak/gwak/output/{deploytype}')
+        artefact = directory('output/export/{deploymodels}')
     shell:
-        'cd deploy; poetry run python ../{params.cli} --config ../{input.config}'
+        'set -x; cd deploy; poetry run python ../deploy/deploy/cli_export.py \
+        --config ../{input.config} --project {params.cli}'
 
-rule deploy_all:
-    input: expand(rules.deploy.output, deploytype='export')
+rule export_all:
+    input: expand(rules.export.output, deploymodels='white_noise_burst')

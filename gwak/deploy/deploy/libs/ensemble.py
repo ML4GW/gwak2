@@ -38,9 +38,8 @@ def add_streaming_input_preprocessor(
 ) -> "ExposedTensor":
     """Create a snapshotter model and add it to the repository"""
 
-    # batch_size, num_ifos, *kernel_size = input.shape
-    batch_size, *kernel_size, num_ifos  = input.shape
-    # breakpoint()
+    batch_size, num_ifos, *kernel_size = input.shape
+    # batch_size, *kernel_size, num_ifos  = input.shape # Apply for gwak1
     snapshotter = BackgroundSnapshotter(
         psd_length=psd_length,
         kernel_length=kernel_length,
@@ -52,9 +51,7 @@ def add_streaming_input_preprocessor(
     stride = int(sample_rate / inference_sampling_rate)
     state_shape = (2, num_ifos, snapshotter.state_size)
     input_shape = (2, num_ifos, batch_size * stride)
-    # state_shape = (2, snapshotter.state_size, num_ifos)
-    # input_shape = (2, batch_size * stride, num_ifos)
-    # breakpoint()
+    # state_shape = (2, snapshotter.state_size, num_ifos) # Apply for gwak1
     streaming_model = streaming_utils.add_streaming_model(
         ensemble.repository,
         streaming_layer=snapshotter,
@@ -68,7 +65,6 @@ def add_streaming_input_preprocessor(
     )
     ensemble.add_input(streaming_model.inputs["stream"])
 
-    # return streaming_model.outputs["strain"]
     preprocessor = BatchWhitener(
         kernel_length=kernel_length,
         sample_rate=sample_rate,

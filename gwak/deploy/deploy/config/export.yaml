@@ -1,15 +1,11 @@
 project: white_noise_burst
-# model_dir: /home/hongyin.chen/anti-gravity/gwak/gwak/output/gwak1
 model_dir: /home/hongyin.chen/anti-gravity/gwak/gwak/output
-# triton_dir: /home/hongyin.chen/Xperimental/GWAK/export_repos_v2
-triton_dir: /home/hongyin.chen/anti-gravity/gwak/gwak/output/export
+output_dir: /home/hongyin.chen/anti-gravity/gwak/gwak/output/export
 clean: True
-# version: 1
-batch_size: 32
+batch_size: 256
 kernel_size: 200
 num_ifos: 2
 gwak_instances: 6
-# platform: TENSORRT
 platform: TORCHSCRIPT
 
 psd_length: 64
@@ -18,4 +14,4 @@ fduration: 1
 fftlength: 2
 sample_rate: 2048
 preproc_instances: 1
-inference_sampling_rate: 16
+inference_sampling_rate: 1

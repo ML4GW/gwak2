@@ -17,8 +17,6 @@ def main(args=None):
     args = parser.parse_args()
     args = args.as_dict()
 
-    for key, item in args.items():
-        print(key, item)
     export(**args)
     
     
