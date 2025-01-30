@@ -18,21 +18,26 @@ Use ```poetry add <package>``` to add new packages to the deploy application.
 - Export
 ```
 $ cd gwak/gwak
-$ snakmake -c1 export_all 
+$ snakemake -c1 export_all 
+```
+- Inference
+```
+$ cd gwak/gwak
+$ snakemake -c1 infer_all 
 ```
 
 ### Via ```Poetry``` ###
 
-- Export
+- Export white_noise_burst
 ```
 $ cd gwak/gwak/deploy
-$ poetry run python deploy/cli_export.py --config deploy/config/export.yaml
+$ poetry run python deploy/cli_export.py --config deploy/config/export.yaml --project white_noise_burst
 ``` 
 
-- Infernce
+- Infernce on white_noise_burst
 
 ```
 $ cd gwak/gwak/deploy
-$ poetry run python deploy/cli_infer.py --config deploy/config/infer.yaml 
+$ poetry run python deploy/cli_infer.py --config deploy/config/infer.yaml --project white_noise_burst
 ``` 
 
