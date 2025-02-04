@@ -1,4 +1,5 @@
 import torch
+import logging
 from typing import Callable, Optional, Tuple
 
 from hermes.quiver.model import EnsembleModel, ExposedTensor
@@ -26,6 +27,9 @@ def scale_model(model, instances):
 def add_streaming_input_preprocessor(
     ensemble: "EnsembleModel",
     input: "ExposedTensor",
+    background_batch_size: int,
+    stride_batch_size: int,
+    num_ifos: int,
     psd_length: float,
     sample_rate: float,
     kernel_length: float,
@@ -38,8 +42,9 @@ def add_streaming_input_preprocessor(
 ) -> "ExposedTensor":
     """Create a snapshotter model and add it to the repository"""
 
-    batch_size, num_ifos, *kernel_size = input.shape
-    # batch_size, *kernel_size, num_ifos  = input.shape # Apply for gwak1
+    # _, _, *kernel_size = input.shape # batch_size, num_ifos, *kernel_size
+    # # batch_size, *kernel_size, num_ifos  = input.shape # Apply for gwak1
+    background_batch_size * stride_batch_size
     snapshotter = BackgroundSnapshotter(
         psd_length=psd_length,
         kernel_length=kernel_length,
@@ -49,9 +54,14 @@ def add_streaming_input_preprocessor(
     )
 
     stride = int(sample_rate / inference_sampling_rate)
-    state_shape = (1, num_ifos, snapshotter.state_size)
-    input_shape = (1, num_ifos, batch_size * stride)
-    # state_shape = (1, snapshotter.state_size, num_ifos) # Apply for gwak1
+    state_shape = (background_batch_size, num_ifos, snapshotter.state_size)
+    input_shape = (background_batch_size, num_ifos, stride_batch_size * stride)
+    logging.info(f"Snappshot kerenl shape: ")
+    logging.info(f"    Batch size: {state_shape[0]}")
+    logging.info(f"    Nums Ifo: {state_shape[1]}")
+    logging.info(f"    Sample Kernel: {state_shape[-1] + input_shape[-1]}")
+    # state_shape = (background_batch_size, snapshotter.state_size, num_ifos) # Apply for gwak1
+
     streaming_model = streaming_utils.add_streaming_model(
         ensemble.repository,
         streaming_layer=snapshotter,
@@ -68,7 +78,7 @@ def add_streaming_input_preprocessor(
     preprocessor = BatchWhitener(
         kernel_length=kernel_length,
         sample_rate=sample_rate,
-        batch_size=batch_size,
+        batch_size=stride_batch_size,
         inference_sampling_rate=inference_sampling_rate,
         fduration=fduration,
         fftlength=fftlength,

@@ -1,10 +1,12 @@
 import torch
+import logging
 
 from pathlib import Path
 from typing import Callable, Optional
 
 import hermes.quiver as qv
 
+from deploy.libs import gwak_logger
 from deploy.libs import scale_model, add_streaming_input_preprocessor
 
 
@@ -13,12 +15,11 @@ def export(
     model_dir: Path,
     output_dir: Path,
     clean: bool,
-    batch_size: int, 
-    kernel_size: int, 
+    background_batch_size: int, 
+    stride_batch_size: int, 
     num_ifos: int, 
     gwak_instances: int, 
     psd_length: float,
-    # version: int,
     kernel_length: float,
     fduration: float,
     fftlength: int,
@@ -33,14 +34,18 @@ def export(
     
     weights = model_dir / project / "model_JIT.pt"
     output_dir = output_dir / project
+    batch_size = background_batch_size * stride_batch_size
+    kernel_size = int(kernel_length * sample_rate)
 
     with open(weights, "rb") as f:
         graph = torch.jit.load(f)
 
     graph.eval()
     output_dir.mkdir(parents=True, exist_ok=True)
+
     repo = qv.ModelRepository(output_dir, clean=clean)
 
+    gwak_logger(output_dir / "export.log")
     try:
         gwak = repo.models[f"gwak-{project}"]
     except KeyError:
@@ -61,6 +66,12 @@ def export(
     elif platform == qv.Platform.TENSORRT:
         kwargs["use_fp16"] = False
 
+    logging.info(f"Export trained model with {platform} format")
+    logging.info(f"GWAK Model iuput shape:")
+    logging.info(f"    Batch size: {input_shape[0]}")
+    logging.info(f"    Nums Ifo: {input_shape[1]}")
+    logging.info(f"    Sample Kernel: {input_shape[-1]}")
+
     gwak.export_version(
         graph,
         input_shapes={"INPUT__0": input_shape}, 
@@ -78,9 +89,13 @@ def export(
         # if we don't, create one
         ensemble = repo.add(ensemble_name, platform=qv.Platform.ENSEMBLE)
 
+        logging.info(f"Adding snappershotter and whitener.")
         whitened = add_streaming_input_preprocessor(
             ensemble,
             gwak.inputs["INPUT__0"],
+            background_batch_size=background_batch_size,
+            stride_batch_size=stride_batch_size,
+            num_ifos=num_ifos,
             psd_length=psd_length,
             sample_rate=sample_rate,
             kernel_length=kernel_length,
@@ -90,6 +105,7 @@ def export(
             preproc_instances=preproc_instances,
         )
 
+        logging.info(f"Ensemble model.")
         ensemble.pipe(whitened, gwak.inputs["INPUT__0"])
 
         # export the ensemble model, which basically amounts
