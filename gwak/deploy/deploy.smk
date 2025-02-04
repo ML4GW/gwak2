@@ -3,7 +3,7 @@ models = ['white_noise_burst', 'gaussian', 'sine_gaussian', 'cusp', 'kink', 'kin
 wildcard_constraints:
     deploymodels = '|'.join(models)
 
-CLI = {
+DEPLOY_CLI = {
     'white_noise_burst': 'white_noise_burst',
     'gaussian': 'gaussian'
 }
@@ -12,7 +12,7 @@ rule export:
     input:
         config = 'deploy/deploy/config/export.yaml'
     params:
-        cli = lambda wildcards: CLI[wildcards.deploymodels]
+        cli = lambda wildcards: DEPLOY_CLI[wildcards.deploymodels]
     output:
         artefact = directory('output/export/{deploymodels}')
     shell:
@@ -23,7 +23,7 @@ rule infer:
     input:
         config = 'deploy/deploy/config/infer.yaml'
     params:
-        cli = lambda wildcards: CLI[wildcards.deploymodels]
+        cli = lambda wildcards: DEPLOY_CLI[wildcards.deploymodels]
     output:
         artefact = directory('output/infer/{deploymodels}')
     shell:

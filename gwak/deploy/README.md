@@ -3,15 +3,6 @@ The deploy application provides two major utilities:
 - Exporting trained NN model to excutibles
 - Producing inference results on sequential data
 
-# Build enviroment #
-
-```
-pip install snakemake==7.32.4 pulp==2.6.0
-cd gwak/gwak/deploy
-poetry install
-```
-Use ```poetry add <package>``` to add new packages to the deploy application. 
-
 # Use the following command to deploy your NN model #
 ### Via ```Snakemake``` ###
 
