@@ -78,7 +78,6 @@ class PsdEstimator(torch.nn.Module):
         )
 
     def forward(self, X: Tensor) -> Tuple[Tensor, Tensor]:
-
         splits = [X.size(-1) - self.size, self.size] # num_info at axis=-1
         background, X = torch.split(X, splits, dim=-1)
 

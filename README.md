@@ -76,3 +76,13 @@ $ snakemake -c1 train_all
 $ pip install -e .
 $ pip install -U 'jsonargparse[signatures]>=4.27.7'
 ```
+
+- Installation for deployment
+
+Run the following command at base enviroment. 
+```
+(base)$ pip install snakemake==7.32.4 pulp==2.6.0
+(base)$ cd gwak/gwak/deploy
+(base)$ poetry install
+```
+Use ```poetry add <package>``` to add new packages to the deploy application. 

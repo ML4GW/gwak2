@@ -1,7 +1,8 @@
+import logging
+
 from deploy.infer import infer
 
 from jsonargparse import ArgumentParser, ActionConfigFile
-
 
 def build_parser():
     
@@ -17,8 +18,6 @@ def main(args=None):
     args = parser.parse_args()
     args = args.as_dict()
 
-    for key, item in args.items():
-        print(key, item)
     infer(**args)
     
     

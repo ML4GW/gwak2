@@ -52,10 +52,11 @@ def static_infer_process(
     num_ifo, 
     psd_length,
     kernel_length,
-    batch_size,
+    fduration,
+    stride_batch_size,
     sample_rate, 
     client: InferenceClient,
-    patient: float=3,  
+    patient: float=1e-1,  
     loop_verbose: int=100
 ): 
     """
@@ -63,21 +64,23 @@ def static_infer_process(
     """
     results = []
 
-    segment_size = int((psd_length + kernel_length + batch_size) * sample_rate)
+    segment_size = int((psd_length + kernel_length + fduration + stride_batch_size - 1) * sample_rate)
 
     for i, background in enumerate(batcher):
 
         if i % loop_verbose == 0: 
-            print(f"Producing inference result on {i}th iteration!")
             logging.info(f"Producing inference result on {i}th iteration!")
 
-        background = background.reshape(-1, 2, segment_size)
+        background = background.reshape(-1, num_ifo, segment_size)
         client.infer(background,request_id=i)
 
         # Wait for the Queue to return the result
         time.sleep(patient)
-        result, idx, _ = client.get()
-        results.append(result)
+        result = client.get()
+        while result is None:
+
+            result = client.get()
+        results.append(result[0])
 
     return results
 
