@@ -15,7 +15,6 @@ import ml4gw
 from ml4gw.dataloading import Hdf5TimeSeriesDataset
 from ml4gw.transforms import SpectralDensity, Whiten
 from ml4gw.gw import compute_observed_strain, get_ifo_geometry
-from bilby.gw.conversion import bilby_to_lalsimulation_spins
 
 from torch.distributions.uniform import Uniform
 from ml4gw.distributions import Cosine
