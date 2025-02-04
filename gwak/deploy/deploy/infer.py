@@ -25,7 +25,7 @@ def infer(
     model_repo_dir: Path,
     image: Path,
     result_dir: Path,
-    load_data_patients: int=10,
+    load_model_patients: int=10,
     **kwargs,
 ):
 
@@ -63,8 +63,8 @@ def infer(
     with serve_context:
 
         # Wait for the serve to connect!
-        logging.info(f"Waiting {load_data_patients} seconds to load model to triton!")
-        time.sleep(load_data_patients)
+        logging.info(f"Waiting {load_model_patients} seconds to load model to triton!")
+        time.sleep(load_model_patients)
 
         client_1 = InferenceClient(address, whiten_model)
         client_2 = InferenceClient(address, gwak_model)
