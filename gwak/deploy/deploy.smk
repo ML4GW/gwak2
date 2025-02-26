@@ -27,7 +27,7 @@ rule infer:
     output:
         artefact = directory('output/infer/{deploymodels}')
     shell:
-        'set -x; cd deploy; CUDA_VISIBLE_DEVICES=0,1 poetry run python \
+        'set -x; cd deploy; CUDA_VISIBLE_DEVICES=5,7 poetry run python \
         ../deploy/deploy/cli_infer.py --config ../{input.config} --project {params.cli}'
 
 rule export_all:

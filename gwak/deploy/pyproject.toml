@@ -22,6 +22,7 @@ jsonargparse = "^4.36.0"
 onnx = "^1.17.0"
 psutil = "^6.1.1"
 h5py = "^3.12.1"
+tqdm = "^4.67.1"
 
 [[tool.poetry.source]]
 name = "torch"
